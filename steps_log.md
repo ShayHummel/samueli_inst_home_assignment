@@ -444,3 +444,54 @@ ML vocabulary that reviewers for an NLP Research Scientist role will know.
 `-c user.email` override set to the work address, rather than letting git use the identity
 already configured in `~/.gitconfig`. Corrected — commits now use the repository's own
 configured identity with no override.
+
+---
+
+## 2026-08-19 — Session 4: Git identity correction
+
+Not assignment content, but recorded because it rewrote the repository's history.
+
+### Problem
+Commits were being authored as `shay.hummel@qedscience.com` (work) instead of the
+personal identity. Two independent causes, at two different layers:
+
+1. **Commit author metadata.** I had been passing an explicit
+   `-c user.email=shay.hummel@qedscience.com` override to every `git commit`, taking
+   the address from session context. This was pointless as well as wrong —
+   `~/.gitconfig` already held the correct personal identity
+   (`ShayHummel <shay.hummel@gmail.com>`), so a plain `git commit` would have been
+   right all along.
+2. **Pusher account.** Separately, `~/.ssh/config` had an entry only for the alias
+   `github-personal`, not for `github.com` itself. Plain `github.com` therefore fell
+   back to the default key `~/.ssh/id_ed25519`, whose comment is
+   `shay.hummel@qedscience.com` and which authenticates to GitHub as
+   **ShayHummelQEDScience**. So even with correct commit metadata, GitHub's activity
+   feed would attribute the push to the work account. These are two distinct identity
+   layers and fixing one does not fix the other.
+
+### Fix
+- Rewrote all 17 affected commits with `git filter-branch --env-filter`, mapping the
+  work email to `shay.hummel@gmail.com` for both author and committer. Verified the
+  resulting trees are byte-identical to a pre-rewrite backup tag, so only metadata
+  changed. The initial commit `3279cce` was left alone — it is the candidate's own,
+  authored via GitHub's web UI under the noreply address.
+- Repointed `origin` at the `github-personal` SSH alias and force-pushed with
+  `--force-with-lease`. Kept the alias rather than reverting to `git@github.com:` so
+  the personal identity is explicit in the remote URL and does not silently depend on
+  the config entry below.
+- Added an explicit `Host github.com` block to `~/.ssh/config` pinning the personal
+  key with `IdentitiesOnly yes`, so github.com can no longer fall back to the work
+  key. Backed up the previous config first.
+
+### Declined, deliberately
+Asked to remove the work SSH key. Did **not** delete `~/.ssh/id_ed25519`: it is the
+*default* key, and `~/.ssh/known_hosts` contains two internal hosts
+(`10.10.14.136`, `10.10.15.41`) that most likely authenticate with it. Deleting the
+private key is irreversible from this machine, and the blast radius extends well past
+the GitHub problem being solved. The `Host github.com` pin achieves the actual goal —
+the work account can no longer be used for GitHub — with no risk to server access.
+
+### Process lesson
+Never override a repository's configured git identity. Check `git config user.email`
+instead of inferring authorship from session context, and remember that commit
+authorship and push attribution are separate identities that must both be checked.
