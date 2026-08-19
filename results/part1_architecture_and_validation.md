@@ -14,16 +14,29 @@ field extraction plus a smaller set of hard reasoning cases.*
 
 ### a) Compare three open-weight models you would deploy locally. For each: strengths, weaknesses, and the clinical use case it is best suited to.
 
-*(~3 short blocks, or a table. Note the tie-back to the mixed workload: which model serves
-the high-volume extraction tier vs. the hard-reasoning tier.)*
-
 **Answer:**
+
+**Deployment thesis.** The workload has two tiers, so the right answer is not a single
+model. I would deploy a mid-size multilingual model for the high-volume extraction tier
+and escalate the smaller set of hard cases to a large reasoning model. The three models
+below encode that as two competing hypotheses for the escalation tier:
 
 | Model | Strengths | Weaknesses | Best-suited clinical use case |
 | --- | --- | --- | --- |
-| *TBD* | | | |
-| *TBD* | | | |
-| *TBD* | | | |
+| **Qwen3.5-27B**<br>*extraction tier* | Broad multilingual coverage — the main reason to evaluate it on mixed Hebrew/English notes; manageable 27B footprint; long context; serves structured extraction efficiently under local serving (vLLM / TGI). | Dense inference is less compute-efficient per parameter than a similarly sized MoE; broad multilingual ability is not evidence of Hebrew *clinical* competence. | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
+| **gpt-oss-120b**<br>*reasoning tier* | Strong reasoning and instruction-following; configurable reasoning effort; native structured-output support; Apache 2.0. 117B total parameters but only ~5.1B active, so it fits a single 80 GB GPU — a genuinely large reasoning model that is practical on-prem. | Slower and heavier than the extraction tier, so it is worth reserving for escalated cases only; text-only. | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
+| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative* | Strong reasoning; efficient MoE (~12B active of 120B); switchable reasoning / non-reasoning modes; very long context; NVIDIA-optimised serving stack, which matters if the hospital is already NVIDIA-heavy. | Needs materially more GPU than gpt-oss in its documented BF16 configuration; Hebrew is not an officially supported language; general / agentic rather than clinically specialised. | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
+
+**A caveat that applies to all three, not to any one of them.** None has established Hebrew
+*clinical* performance. That is a property of the current open-weight landscape rather than a
+distinguishing weakness of a particular model, so I treat it once here and address the
+mitigation in (b).
+
+**Selection is empirical, not a priori.** These are candidates, not a final choice. Selection
+should rest on a hospital-specific benchmark over de-identified Hebrew/English oncology notes,
+measuring extraction and classification quality, faithfulness, JSON schema adherence, latency,
+throughput and GPU memory. Public general-purpose benchmarks are useful for shortlisting
+candidates but are not sufficient evidence for clinical deployment.
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
