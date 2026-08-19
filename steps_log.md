@@ -495,3 +495,68 @@ the work account can no longer be used for GitHub — with no risk to server acc
 Never override a repository's configured git identity. Check `git config user.email`
 instead of inferring authorship from session context, and remember that commit
 authorship and push attribution are separate identities that must both be checked.
+
+---
+
+## 2026-08-19 — Session 5: Part 2 begun (2.1 clarifying questions)
+
+**Part:** Part 2 — Clinical Requirement → Prompt.
+
+### Done
+- Created `results/part2_prompt_design.md` with the full 2.1–2.7 scaffold and the same
+  `@claude` comment convention as Part 1 (note tightened: the marker must be `@claude`
+  and nothing else, after a `@this` variant slipped past the grep sweep in Part 1).
+- 2.1 answered. Candidate drafted seven questions; organised into five groups and
+  extended to eighteen.
+
+### Candidate's seven questions, and how they were handled
+Kept essentially intact, regrouped:
+- "What differentiates the most between PD and non-PD?" → **A1**
+- "When, beyond a doubt, does a disease become non-progressive / progressive?" → **A2**
+- "What are the pathological signals for each case?" → **A3**
+- "Pick 10 terms representing PD / non-PD" → **B6, B7**
+- "What are the stages you take when reading?" → **C8**
+- "What is CR? PR? SD? PD?" → **reframed as A4**, see below.
+
+**C8 is the strongest question in the set** and worth noting as such: eliciting the
+clinician's *reading procedure* is what supplies the chain-of-thought structure for the
+prompt. A CoT that mirrors how the expert actually reads will outperform one invented by
+the prompt author.
+
+**A4 is a reframe, not a copy.** "What is CR? PR? SD? PD?" asks the oncologist to define
+standard RECIST categories that an NLP Research Scientist is expected to know — to a
+reviewer that risks reading as a knowledge gap rather than a clarifying question. The
+useful question underneath it is the *mapping*: do CR, PR and SD all collapse to Non-PD,
+does only PD map to PD, and what happens to a mixed response where some lesions respond
+while others grow. That version elicits information the candidate genuinely cannot know.
+
+### Eleven questions added, and why
+The assignment states its own trap list — "no evidence of progression", "if the patient
+progresses…", "patient's mother had progressive disease", "stable disease (SD), previously
+PD in 2023", "PR on imaging" — plus a prompt-injection string. Each trap is an ambiguity
+that must be resolved *before* the prompt is written, so each earns a question:
+- **D9 temporality** (the "previously PD in 2023" trap) — does current status govern?
+- **D10 negation** (the "no evidence of progression" trap)
+- **D11 hypotheticals** (the "if the patient progresses" trap)
+- **D12 subject** (the family-history trap)
+- **A4 mixed response** (the "PR on imaging" trap's harder sibling)
+
+Beyond the traps, four operational questions the prompt cannot be written without:
+- **D13 insufficient information** — the open design fork: the schema is binary, but a
+  summary with no response information is not evidence of non-progression.
+- **D14 conflict resolution** — most recent, most objective, or the attending's conclusion?
+- **E15 unit of decision** — per summary, per visit, or per patient?
+- **E16 authoritative sections** — copied-forward past medical history is a known source
+  of stale progression statements.
+- **E17 cost asymmetry** — sets the operating threshold, tying back to Q1.2c rather than
+  leaving the threshold at a default 0.5.
+- **E18 adjudication** — who resolves annotator disagreement, tying back to Q1.2b's HITL
+  design.
+
+### Open questions
+- Whether to keep all eighteen or trim; the assignment prefers concise answers, and
+  eighteen is defensible only because each maps to a specific downstream prompt decision.
+- **D13 still unresolved and blocking 2.2:** what a summary with no progression
+  information should be labelled. Current proposal is to carry it in a low
+  `confidence_score` and route it to the abstention band designed in Q1.2c, rather than
+  silently defaulting to Non-PD.
