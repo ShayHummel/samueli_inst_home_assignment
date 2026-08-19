@@ -217,3 +217,20 @@ All seven strengthenings offered at the end of session 2 were approved and appli
   model cards — now also including the two licence strings just added.
 - Candidate is doing a full re-read pass and will leave `@claude` comments.
 - Part 2 not started; awaiting go-ahead.
+
+### Comment round 1 — Q1.1a strengths/weaknesses as bullets
+
+`@claude` comment: *"I want the strength and weaknesses as bullet points. Each in a
+different line. Each bullet-point as concise as possible."* — kept as a table, with
+the Strengths and Weaknesses cells bulleted.
+
+**How the bullets are done, and why.** Markdown table cells cannot contain real
+Markdown lists, so bullets inside a cell need either literal `•` characters joined by
+`<br>`, or raw `<ul><li>` HTML. Chose `<br>•`: the bullet is plain text and `<br>` is
+near-universally supported, so it survives GitHub rendering and Markdown→PDF export
+alike. Raw `<ul>` inside a table cell renders correctly on GitHub but is commonly
+dropped when Markdown is converted to LaTeX/PDF, which would silently lose the
+bullets in the submitted artefact.
+
+Bullets were compressed to short noun phrases per "as concise as possible" — no full
+sentences. Counts: 4/2, 4/2, 5/3 strengths/weaknesses.

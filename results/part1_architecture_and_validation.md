@@ -28,15 +28,17 @@ field extraction plus a smaller set of hard reasoning cases.*
 **Answer:**
 
 **Deployment thesis.** The workload has two tiers, so the right answer is not a single
-model. I would deploy a mid-size multilingual model for the high-volume extraction tier
+model.
+
+I would deploy a mid-size multilingual model for the high-volume extraction tier
 and escalate the smaller set of hard cases to a large reasoning model. The three models
 below encode that as two competing hypotheses for the escalation tier:
 
 | Model | Strengths | Weaknesses | Best-suited clinical use case |
 | --- | --- | --- | --- |
-| **Qwen3.5-27B**<br>*extraction tier*<br>`Apache 2.0` | Broad multilingual coverage — the main reason to evaluate it on mixed Hebrew/English notes; manageable 27B footprint; long context; serves structured extraction efficiently under local serving (vLLM / TGI). | Dense inference is less compute-efficient per parameter than a similarly sized MoE; broad multilingual ability is not evidence of Hebrew *clinical* competence. | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
-| **gpt-oss-120b**<br>*reasoning tier*<br>`Apache 2.0` | Strong reasoning and instruction-following; configurable reasoning effort; native structured-output support. 117B total parameters but only ~5.1B active, so it fits a single 80 GB GPU — a genuinely large reasoning model that is practical on-prem. | Slower and heavier than the extraction tier, so it is worth reserving for escalated cases only; text-only. | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
-| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>`NVIDIA Open Model Licence` | Strong reasoning; efficient MoE (~12B active of 120B); switchable reasoning / non-reasoning modes; very long context; NVIDIA-optimised serving stack, which matters if the hospital is already NVIDIA-heavy. | Needs materially more GPU than gpt-oss in its documented BF16 configuration; Hebrew is not an officially supported language; general / agentic rather than clinically specialised. | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
+| **Qwen3.5-27B**<br>*extraction tier*<br>`Apache 2.0` | • Broad multilingual coverage — the reason to evaluate it on Hebrew/English notes<br>• Manageable 27B footprint<br>• Long context<br>• Serves structured extraction efficiently (vLLM / TGI) | • Dense: less compute-efficient per parameter than a similarly sized MoE<br>• Multilingual breadth is not evidence of Hebrew *clinical* competence | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
+| **gpt-oss-120b**<br>*reasoning tier*<br>`Apache 2.0` | • Strong reasoning and instruction-following<br>• Configurable reasoning effort<br>• Native structured-output support<br>• 117B total but only ~5.1B active — fits a single 80 GB GPU, so a genuinely large reasoning model is practical on-prem | • Slower and heavier than the extraction tier — reserve for escalated cases only<br>• Text-only | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
+| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>`NVIDIA Open Model Licence` | • Strong reasoning<br>• Efficient MoE — ~12B active of 120B<br>• Switchable reasoning / non-reasoning modes<br>• Very long context<br>• NVIDIA-optimised serving stack — matters if the hospital is already NVIDIA-heavy | • Materially more GPU than gpt-oss in its documented BF16 configuration<br>• Hebrew is not an officially supported language<br>• General / agentic rather than clinically specialised | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
 
 **A caveat that applies to all three, not to any one of them.** None has established Hebrew
 *clinical* performance. That is a property of the current open-weight landscape rather than a
