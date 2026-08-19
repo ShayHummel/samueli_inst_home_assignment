@@ -560,3 +560,34 @@ Beyond the traps, four operational questions the prompt cannot be written withou
   information should be labelled. Current proposal is to carry it in a low
   `confidence_score` and route it to the abstention band designed in Q1.2c, rather than
   silently defaulting to Non-PD.
+
+### Session 5 continued — D11 clarified, D13 decided
+
+**D11 rewritten.** The candidate found it unclear; the original ("this is a plan, not an
+event. Confirm it is never PD") stated a conclusion without describing the phenomenon.
+Rewritten to name the phenomenon, state the proposed default, and then ask the question
+that is genuinely the oncologist's to answer: whether documenting a contingency plan
+itself signals suspected progression, which is a fact about their documentation habits
+rather than about English.
+
+**D13 decided** — carry insufficient information in `confidence_score`, not in a new
+schema field. Candidate approved the recommendation. Reasoning recorded in the answers
+file: the schema in 2.3 is binary and admits no third class, and defaulting an
+uninformative note to `Non-PD` conflates "nothing documented" with "no progression" — an
+error the evaluation cannot detect, since both produce an identical output. The chosen
+signature is `classification: Non-PD` + low `confidence_score` + **empty**
+`supporting_evidence` + a `clinical_reasoning` string stating there is no assessable
+content. Empty evidence plus a low score is machine-detectable, so it drives the
+abstention band from Q1.2c without deviating from the required schema.
+
+**Working-assumptions table added** covering D9–D13 and A4, each with its rationale.
+Rationale for adding it at all: the oncologist's answers do not exist, so 2.2 has to be
+written against defaults. Stating them in a table means a reviewer can see what was
+*assumed* rather than *decided*, and a real answer can be substituted later without
+re-reading the prompt. A4 (mixed response) resolves to PD, justified by the cost asymmetry
+raised in E17 — a missed progression is the more expensive error in a screening task.
+
+### Open
+- 2.2 is next: system prompt + user prompt template, written against the assumptions
+  table. Candidate wants this designed collaboratively, so it will be drafted for
+  iteration rather than presented as finished.
