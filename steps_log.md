@@ -293,3 +293,37 @@ lead to *Licence constraints:*. Consequence flagged to the candidate: the table'
 figures now carry no "weights-only approximation, KV cache excluded" caveat, so they read
 as measured numbers, and strengthening #2 (validating that quantisation does not degrade
 extraction quality or JSON adherence) is no longer stated anywhere.
+
+### Comment round 4 — Q1.2a mitigation column
+
+Four comments, all on Q1.2a. Note one was written `@this` rather than `@claude`, so the
+`grep '@claude'` convention missed it — worth keeping to the one marker.
+
+**1. "add mitigation column which will mitigate the 'misses' column"** — table is now
+five columns: Framework / Method / Catches / Misses / Mitigation. Each mitigation
+answers that row's specific miss rather than being generic advice.
+
+**2. "is it for both binary labels and extracted fields?"** — yes, both. Made explicit
+in the Method cell: "Compare model outputs — **both the binary label and the extracted
+fields** — against an independently clinician-annotated, adjudicated test set." The
+question was fair: the original wording left it ambiguous, and the assignment states the
+pipeline emits both.
+
+**3. "extracted text may vary thus makes it hard to compare to human labels. Requires a
+solution"** — a genuine miss that was absent, now added as a second bullet in that cell:
+free-text extractions vary in wording and span boundaries, so they do not compare to a
+human annotation by exact match. The paired mitigation is to score spans by normalised
+and partial-overlap matching (character-offset IoU) rather than string equality, and to
+reserve exact match for closed-vocabulary fields.
+
+**4. "@this approach mitigates the problem I mentioned in the miss of Human-goldstandard
+evaluation"** — correct, and now stated in both directions: the automated framework's
+Catches cell names the span-variance problem explicitly, and the human row's mitigation
+points forward to it. The closing paragraph was extended to generalise the observation —
+the mitigations are largely *each other*, since the span-variance limit of human
+comparison is answered by automated partial-overlap scoring while the correctness blind
+spot of automated scoring is answered by anchoring back to the gold standard.
+
+**Consistency tidy:** the candidate had removed the `**Answer:**` markers from Q1.1a,
+Q1.1b, Q1.2a and Q1.2b; removed the four remaining ones (Q1.2c–f) so the document does
+not mix both styles.

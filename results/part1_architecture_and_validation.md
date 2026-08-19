@@ -25,8 +25,6 @@ field extraction plus a smaller set of hard reasoning cases.*
 
 ### a) Compare three open-weight models you would deploy locally. For each: strengths, weaknesses, and the clinical use case it is best suited to.
 
-**Answer:**
-
 **Deployment thesis.** The workload has two tiers, so the right answer is not a single
 model.
 
@@ -55,8 +53,6 @@ it benchmarks, which is why the licence sits in the table beside the technical p
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
-**Answer:**
-
 **Concern.** Open-weight LLMs are trained overwhelmingly on English, with far less Hebrew and
 less still Hebrew *clinical* text. Hebrew's rich morphology complicates tokenization, and
 Israeli oncology notes code-switch constantly: Hebrew prose around English drug names,
@@ -82,27 +78,20 @@ hospital records reported strong clinical temporal extraction, including on an o
 
 ### a) Detail three different methodology frameworks for validating the LLM's output. For each, state what it catches and what it misses.
 
-**Answer:**
-
-| Framework | Method | Catches | Misses |
-| --- | --- | --- | --- |
-| **Human gold-standard evaluation** | Compare model outputs against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | Limited sample size, being cost-bound, so rare cases may be underrepresented. |
-| **Consistency & robustness testing** | Repeated runs, controlled input perturbations, and disagreement across independent model families. | Instability, prompt sensitivity, brittle behaviour, and which cases are genuinely difficult. | Agreement does not imply correctness — models may share systematic errors. |
-| **Automated reference-based validation** | Exact and normalised matching for structured fields, schema and range checks, evidence verification, and semantic similarity where appropriate. | Scalable detection of incorrect, malformed or unsupported outputs. | Rules cannot capture all clinical context; semantic similarity does not guarantee clinical correctness. |
+| Framework | Method | Catches | Misses | Mitigation |
+| --- | --- | --- | --- | --- |
+| **Human gold-standard evaluation** | Compare model outputs — **both the binary label and the extracted fields** — against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | • Cost-bound sample size, so rare cases are underrepresented<br>• Free-text extractions vary in wording and span boundaries, so they do not compare to a human annotation by exact match | • Stratify and oversample the rare and hard strata rather than sampling uniformly; report confidence intervals so a small *n* stays visible<br>• Score spans by normalised and partial-overlap matching (character-offset IoU), reserving exact match for closed-vocabulary fields — supplied by the automated framework below |
+| **Consistency & robustness testing** | Repeated runs, controlled input perturbations, and disagreement across independent model families. | Instability, prompt sensitivity, brittle behaviour, and which cases are genuinely difficult. | Agreement does not imply correctness — models may share systematic errors. | Anchor a subset to the human gold standard so agreement is calibrated against truth, and draw the ensemble from genuinely independent model families rather than checkpoints of one lineage. |
+| **Automated reference-based validation** | Exact and normalised matching for structured fields, schema and range checks, evidence verification, and semantic similarity where appropriate. | Scalable detection of incorrect, malformed or unsupported outputs — including the span-variance problem above, via normalised and partial-overlap scoring. | Rules cannot capture all clinical context; semantic similarity does not guarantee clinical correctness. | Treat automated scores as a screen, not a verdict: route low-scoring and disagreeing cases to clinician review, and periodically re-validate the automated metrics against the gold standard. |
 
 These are complementary rather than competing: human evaluation establishes correctness,
-robustness testing identifies instability, and automated validation makes evaluation
-possible at scale.
+robustness testing identifies instability, and automated validation makes evaluation possible
+at scale. Notably, the mitigations are largely *each other* — the span-variance limit of human
+comparison is answered by automated partial-overlap scoring, and the correctness blind spot of
+automated scoring is answered by anchoring back to the gold standard. No one framework is
+sufficient alone.
 
 ### b) Annotation strategy — design a Human-in-the-Loop (HITL) framework using clinical experts to build your gold standard.
-
-Must cover:
-- how many notes, and annotated by whom;
-- how you would measure agreement (**name the statistical metric for inter-rater reliability**);
-- what happens when two clinicians disagree;
-- the metrics you would use for model-vs-human performance.
-
-**Answer:**
 
 - **Sample size & annotators:** A representative gold-standard set of approximately 500–1,000
   notes, stratified by relevant characteristics such as label, note type, language and
@@ -126,8 +115,6 @@ Must cover:
 
 ### c) Which metrics would you report for the binary label, and when is ROC-AUC misleading? If the positive class has ~5% prevalence, what do you report instead?
 
-**Answer:**
-
 I would report precision, recall (sensitivity), specificity, F1, the confusion matrix,
 ROC-AUC and PR-AUC.
 
@@ -149,8 +136,6 @@ periods with different prevalence. I would always report prevalence next to it.
 
 ### d) What is "LLM-as-a-judge"? Give two concrete risks and a mitigation for each. How would you decide whether the judge itself can be trusted?
 
-**Answer:**
-
 - **Definition:** LLM-as-a-judge uses an LLM to evaluate another model's output against a
   predefined rubric — for example, deciding whether an extraction is clinically correct, or
   whether it is actually supported by the source note.
@@ -171,8 +156,6 @@ periods with different prevalence. I would always report prevalence next to it.
   a reliable judge.
 
 ### e) Faithfulness: propose a concrete method to detect when an extracted value is not actually supported by the source note, and how you would quantify this across a dataset.
-
-**Answer:**
 
 I would require every extracted value to carry an exact supporting quote or span from the
 source note:
@@ -204,8 +187,6 @@ harder to ground than others. I would additionally put a sample through clinicia
 weighted towards unsupported and clinically high-risk extractions.
 
 ### f) You measure F1 = 0.92 on your held-out test set, yet clinicians report the system is unreliable in production. Give at least four plausible causes and one diagnostic step for each.
-
-**Answer:**
 
 | # | Plausible cause | Diagnostic step |
 | --- | --- | --- |
