@@ -149,6 +149,17 @@ likewise uninformative: labelling every case negative already scores 95%.
 I would therefore emphasise precision, recall, F1 and PR-AUC, with particular attention to
 recall wherever false negatives carry high clinical cost.
 
+**Emit a calibrated probability, not only the binary label.** A hard label yields a single point
+on the ROC curve, so ROC-AUC and PR-AUC are not computable from it at all — the pipeline has to
+output a score. But an LLM's self-reported confidence is not a probability: it clusters on round
+values and is systematically overconfident, so it cannot be read as P(PD | note). I would derive
+the score from the label-token logprobs, calibrate it on a held-out calibration split (Platt
+scaling or isotonic regression, never fitted on the test set), and report **calibration
+alongside discrimination** — reliability diagram, Expected Calibration Error and Brier score.
+Calibration is what makes the operating threshold above meaningful, and it enables selective
+prediction: auto-accept confident PD and Non-PD, and route the uncertain middle band to
+clinician review, reporting the resulting coverage against accuracy.
+
 Two reporting disciplines matter as much as the choice of metric. First, precision, recall and
 F1 are all **threshold-dependent**, so I would fix and state an explicit operating threshold —
 chosen on validation data against the clinical cost ratio of a false negative to a false

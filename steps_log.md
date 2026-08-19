@@ -392,3 +392,38 @@ unfamiliar. Replaced with "room for improvement". Worth generalising as a rule f
 submission: the reviewers are clinical-research readers and may not be native English
 speakers, so idiomatic shorthand should be avoided where a plain phrase does the same
 work. No other instances of the term in `results/`.
+
+### Comment round 7 — probability label alongside the binary label
+
+Candidate suggestion: *"Maybe instead of binary labels we want an additional probability
+label."* Adopted, as an **addition** rather than a replacement — the assignment's Q1.2
+preamble fixes the pipeline output as "extracted fields and a binary label", and Part 2's
+schema already pairs `classification` with `confidence_score`, so the score is required
+rather than optional.
+
+Added to Q1.2c. Four points, in the order they matter:
+1. **A hard label makes the AUCs uncomputable.** One label = one point on the ROC curve,
+   not a curve. Part 3.2 explicitly asks for ROC-AUC from confidence scores, so this is
+   forced by the assignment, not a preference.
+2. **An LLM's self-reported confidence is not a probability.** It clusters on round values
+   (0.9, 0.95) and is systematically overconfident, so it cannot be read as P(PD | note).
+   This is the trap: the schema *looks* like it hands you a probability and does not.
+3. **Derive and calibrate instead** — score from label-token logprobs, calibrated on a
+   held-out calibration split with Platt scaling or isotonic regression, explicitly never
+   fitted on the test set.
+4. **Report calibration alongside discrimination** — reliability diagram, Expected
+   Calibration Error, Brier score. Calibration is what makes the operating threshold from
+   the preceding paragraph meaningful, and it unlocks selective prediction: auto-accept
+   confident PD and Non-PD, route the uncertain band to clinician review, report coverage
+   against accuracy.
+
+**Cross-part tension to resolve in Part 2, noted here so it is not forgotten.** The other
+common way to get a score is self-consistency — sample k times and use the vote fraction.
+That requires temperature > 0, which directly contradicts Q2.6's determinism requirement
+for a reproducible extraction pipeline. Logprob-based scoring is preferred precisely
+because it is available at temperature 0 and so keeps determinism intact. If self-consistency
+is ever used, it must be seeded and the seed pinned alongside the other reproducibility
+parameters.
+
+This point also connects to Q1.2f's human-factors cause: surfacing a calibrated confidence
+is part of what lets a clinician verify a result rather than withhold trust from it.
