@@ -269,3 +269,27 @@ of the table"** — both done:
 **Candidate edit noted:** the "Selection is empirical, not a priori" paragraph was
 deleted from Q1.1a in the same pass. Not restored — flagged to the candidate to confirm
 whether that was deliberate, since it carried the answer's main judgment signal.
+
+### Comment round 3 — Q1.1b condensed
+
+`@claude` comment: *"the above q1.1.b answer is very good. can you make the above more
+concise?"*
+
+Condensed 211 → 159 words (−25%) with no substantive loss. Every point survives: the
+English-dominant training imbalance, morphology/tokenization, code-switching with
+transliterated terms and shorthand, the non-transfer conclusion, the two supporting
+literature claims, and the full three-step mitigation with its citation. What went was
+connective padding ("I would first…", "I would measure both… rather than relying on…")
+and hedging; sentences were merged and the two halves given bold **Concern.** /
+**Mitigation.** leads so the structure is visible at a glance. Also re-wrapped to the
+file's ~95-character convention, since the pasted original was unwrapped.
+
+Restored the blank line before the `### b)` heading, which an edit had removed —
+Markdown headings need a preceding blank line to render reliably across parsers.
+
+**Candidate edits noted, not reverted:** the *Serving precision* half of the
+deployment-constraints paragraph was deleted, and the remaining half demoted from a bold
+lead to *Licence constraints:*. Consequence flagged to the candidate: the table's VRAM
+figures now carry no "weights-only approximation, KV cache excluded" caveat, so they read
+as measured numbers, and strengthening #2 (validating that quantisation does not degrade
+extraction quality or JSON adherence) is no longer stated anywhere.

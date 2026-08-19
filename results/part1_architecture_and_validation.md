@@ -46,25 +46,33 @@ for all three. That is a property of the current open-weight landscape rather th
 distinguishing weakness of any one model, so it is stated once here rather than repeated per
 row, and the mitigation is in (b).
 
-**On the two deployment constraints in the table.** *Licence:* on-prem terms are
+*Licence constraints:* on-prem terms are
 load-bearing, and "open-weight" does not mean unrestricted. Llama is the standard example — its
 community licence carries acceptable-use terms and a monthly-active-user threshold above which
 separate permission from Meta is required, so it needs legal sign-off in a way Apache 2.0 does
 not. A restrictive or non-commercial licence can therefore disqualify a model regardless of how
 it benchmarks, which is why the licence sits in the table beside the technical properties.
-*Serving precision:* the VRAM figures are weights-only approximations (≈2 bytes per parameter
-at BF16, ≈1 at FP8) and exclude KV cache, so real headroom is lower than they suggest. At
-volume I would serve the extraction tier quantised, and treat "does quantisation degrade
-extraction quality or JSON schema adherence?" as an explicit validation question rather than an
-assumption — re-running the same held-out clinical set at each candidate precision.
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
 **Answer:**
 
-Most open-weight LLMs are trained predominantly on English, with substantially less Hebrew—and even less Hebrew clinical text. Hebrew is morphologically rich, making tokenization harder, and Israeli clinical notes commonly combine Hebrew with English medical terminology, transliterations, abbreviations, drug names, and non-standard shorthand. Consequently, good English or general multilingual benchmark performance cannot be assumed to transfer to Hebrew clinical extraction. Hebrew-specific NLP work has identified morphology and tokenization as a challenge, while prior clinical NLP research found that handling transliterated medical terms substantially improves Hebrew medical information extraction.
+**Concern.** Open-weight LLMs are trained overwhelmingly on English, with far less Hebrew and
+less still Hebrew *clinical* text. Hebrew's rich morphology complicates tokenization, and
+Israeli oncology notes code-switch constantly: Hebrew prose around English drug names,
+transliterated terms, abbreviations and ad-hoc shorthand. Strong English or general
+multilingual scores therefore cannot be assumed to transfer — Hebrew NLP work identifies
+morphology and tokenization as the core difficulty, and clinical NLP work shows that handling
+transliterated medical terms materially improves Hebrew extraction.
 
-**Mitigation:** I would first benchmark candidate models on a clinician-annotated, representative Hebrew oncology test set, stratified by language characteristics (Hebrew-only vs. Hebrew-English code-switching, abbreviations, transliteration). I would measure both task accuracy and failure patterns rather than relying on generic multilingual benchmarks. If performance is insufficient, I would evaluate continued pre-training and domain adaptation on de-identified local clinical text and supervised fine-tuning on the target extraction tasks, while maintaining a fixed Hebrew clinical holdout set. Recent Hebrew clinical NLP research provides evidence this direction is viable: a Hebrew medical model continually pre-trained on >5M de-identified hospital records reported strong results on clinical temporal extraction, including an oncology dataset (https://arxiv.org/abs/2512.11502).
+**Mitigation.** Benchmark candidates on a clinician-annotated Hebrew oncology set stratified by
+language profile (Hebrew-only vs. code-switched, abbreviation- and transliteration-heavy),
+scoring failure patterns alongside accuracy rather than trusting generic multilingual
+benchmarks. If that falls short, continue pre-training on de-identified local clinical text and
+fine-tune on the target extraction tasks, against a fixed Hebrew clinical holdout. The
+direction is evidenced: a Hebrew medical model continually pre-trained on >5M de-identified
+hospital records reported strong clinical temporal extraction, including on an oncology dataset
+([arXiv:2512.11502](https://arxiv.org/abs/2512.11502)).
 
 ---
 
