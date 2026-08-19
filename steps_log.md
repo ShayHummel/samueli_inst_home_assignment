@@ -57,3 +57,24 @@ Conventions:
 ### Open questions
 - None blocking. Part 1 answers are being written by the candidate; my role there is
   refinement and phrasing only.
+
+### Addendum — working directly on `main`
+
+Setup was initially done in a git worktree (`.claude/worktrees/samueli-assignment`).
+Per instruction, worktrees are not used in this project: all work happens directly
+in the main checkout on `main`.
+
+- The worktree branch was fast-forwarded into `main` (it was a strict descendant,
+  so no merge commit and no history rewrite), then the worktree and its branch were
+  removed.
+- `hw_docs/Oncology.csv` was untracked in the main checkout and committed on the
+  branch, where git normalised its CRLF line endings to LF. Verified byte-identical
+  modulo line endings (matching md5 after stripping `\r`) before letting git replace
+  the working-tree copy, so no data was altered.
+- `uv.lock` was salvaged from the worktree and committed. Deliberate: Q2.6 asks what
+  must be pinned for a reported number to still be reproducible in six months, and
+  the lockfile is part of that answer for this repo.
+
+**Rationale for working on `main` directly:** the theoretical answers in `results/`
+are written by the candidate, so the files must sit at the paths the IDE already
+points at. A worktree risks two divergent copies of the same answer file.
