@@ -80,7 +80,7 @@ hospital records reported strong clinical temporal extraction, including on an o
 
 | Framework | Method | Catches | Misses | Mitigation |
 | --- | --- | --- | --- | --- |
-| **Human gold-standard evaluation** | Compare model outputs — **both the binary label and the extracted fields** — against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | • Cost-bound sample size, so rare cases are underrepresented<br>• Free-text extractions vary in wording and span boundaries, so they do not compare to a human annotation by exact match | • Stratify and oversample the rare and hard strata rather than sampling uniformly; report confidence intervals so a small *n* stays visible<br>• Score spans by normalised and partial-overlap matching (character-offset IoU), reserving exact match for closed-vocabulary fields — supplied by the automated framework below |
+| **Human gold-standard evaluation** | Compare model outputs — **both the binary label and the extracted fields** — against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | • Cost-bound sample size, so rare cases are underrepresented<br>• Free-text extractions vary in wording and span boundaries, so they do not compare to a human annotation by exact match | • Stratify and oversample the rare and hard strata rather than sampling uniformly; report confidence intervals so a small *n* stays visible<br>• Score spans by normalised and partial-overlap matching (character-offset IoU — positional, not lexical; see (b) on ROUGE), reserving exact match for closed-vocabulary fields — supplied by the automated framework below |
 | **Consistency & robustness testing** | Repeated runs, controlled input perturbations, and disagreement across independent model families. | Instability, prompt sensitivity, brittle behaviour, and which cases are genuinely difficult. | Agreement does not imply correctness — models may share systematic errors. | Anchor a subset to the human gold standard so agreement is calibrated against truth, and draw the ensemble from genuinely independent model families rather than checkpoints of one lineage. |
 | **Automated reference-based validation** | Exact and normalised matching for structured fields, schema and range checks, evidence verification, and semantic similarity where appropriate. | Scalable detection of incorrect, malformed or unsupported outputs — including the span-variance problem above, via normalised and partial-overlap scoring. | Rules cannot capture all clinical context; semantic similarity does not guarantee clinical correctness. | Treat automated scores as a screen, not a verdict: route low-scoring and disagreeing cases to clinician review, and periodically re-validate the automated metrics against the gold standard. |
 
@@ -106,17 +106,39 @@ sufficient alone.
 - **Disagreement resolution:** Disagreements are adjudicated by a third, senior clinician,
   whose decision defines the gold label.
 - **Model-vs-human metrics:** Precision, recall, F1 and the confusion matrix for the binary
-  label; exact and normalised match for the extracted fields — all measured against the
-  adjudicated gold standard. Critically, these are interpreted **relative to inter-annotator
-  agreement, which is the practical ceiling.** A model scoring at or near human-human agreement
-  is performing as well as the task definition permits, and the residual gap to 1.0 reflects
-  irreducible ambiguity in the notes rather than a model defect. Reporting model F1 without
-  that reference point overstates how much headroom actually remains.
+  label. For the extracted fields the metric has to match the field type: exact match after
+  normalisation for categorical fields; terminology- or ISO-normalised match for drugs,
+  diagnoses and dates, so that "Taxol" against "paclitaxel" is not scored as a miss; and
+  character-offset partial-match precision / recall / F1 for evidence spans, as used in the
+  i2b2 / n2c2 clinical IE tasks. All measured against the adjudicated gold standard.
+- **On ROUGE:** worth including, but scoped. It earns a place as a *secondary* metric for
+  genuinely free-text fields — a narrative reasoning field, say — and then only as ROUGE-L
+  **F-measure**, since plain ROUGE-N is recall-oriented and therefore rewards verbose
+  over-extraction. It should not become the headline extraction metric here, for two reasons.
+  First, it is negation-blind: "no evidence of progression" and "evidence of progression" share
+  most of their unigrams while being clinically opposite, which is precisely the failure mode
+  this pipeline exists to catch. Second, it ignores position, so it cannot distinguish a quote
+  taken from the right part of the note from lexically similar text elsewhere — which is why
+  (a) scores spans by character offset rather than by lexical overlap.
+- **Interpretation:** all of the above are read **relative to inter-annotator agreement, which
+  is the practical ceiling.** A model scoring at or near human-human agreement is performing as
+  well as the task definition permits, and the residual gap to 1.0 reflects irreducible
+  ambiguity in the notes rather than a model defect. Reporting model F1 without that reference
+  point overstates how much headroom actually remains.
 
 ### c) Which metrics would you report for the binary label, and when is ROC-AUC misleading? If the positive class has ~5% prevalence, what do you report instead?
 
-I would report precision, recall (sensitivity), specificity, F1, the confusion matrix,
+I would report precision (PPV), recall (sensitivity), specificity, F1, the confusion matrix,
 ROC-AUC and PR-AUC.
+
+**Why specificity, given the imbalance.** Only for one reason, and with a caveat attached.
+Clinicians read diagnostic performance as a sensitivity/specificity pair, so omitting it makes
+the report harder for the people who have to act on it. But under ~5% prevalence specificity is
+reassuring and nearly uninformative: it is 1 − FPR, so it shares exactly the weakness that
+makes ROC-AUC misleading here, and a model can post 0.95 specificity while generating more
+false positives than true positives. Precision (PPV) is the operationally meaningful
+counterpart, because it is what determines how much of a clinician's review queue is noise. So
+I report specificity for communication, and lead on PPV for decisions.
 
 ROC-AUC becomes misleading under severe class imbalance, because the large number of
 negatives means a low false-positive *rate* can still correspond to a clinically significant

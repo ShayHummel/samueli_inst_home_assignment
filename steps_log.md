@@ -327,3 +327,40 @@ spot of automated scoring is answered by anchoring back to the gold standard.
 **Consistency tidy:** the candidate had removed the `**Answer:**` markers from Q1.1a,
 Q1.1b, Q1.2a and Q1.2b; removed the four remaining ones (Q1.2c–f) so the document does
 not mix both styles.
+
+### Comment round 5 — ROUGE, and why specificity
+
+Two comments.
+
+**1. "Maybe rouge metric is good here and in the table above?"** (Q1.2b) — answered as
+"yes, but narrowly", and the scoping is itself the substance of the answer.
+
+ROUGE was *added* as a secondary metric for genuinely free-text fields, and only as
+ROUGE-L **F-measure**, since plain ROUGE-N is recall-oriented and so rewards verbose
+over-extraction. It was deliberately *not* promoted to the headline extraction metric, nor
+swapped into the Q1.2a table in place of character-offset IoU, for two reasons:
+- **Negation-blindness.** "no evidence of progression" and "evidence of progression" share
+  most of their unigrams while being clinically opposite. That is exactly the failure mode
+  the assignment's Part-2 trap list is built around, so a metric that cannot see it must
+  not be the primary one.
+- **Position-blindness.** ROUGE cannot distinguish a quote taken from the correct part of
+  the note from lexically similar text elsewhere in it. Faithfulness scoring (Q1.2e) needs
+  positional grounding, which is why (a) scores spans by character offset. A note was added
+  to that cell — "character-offset IoU — positional, not lexical; see (b) on ROUGE" — so
+  the choice is visibly deliberate rather than an oversight.
+
+The model-vs-human bullet was also restructured to tier the metric by field type
+(normalised exact match for categorical; terminology/ISO-normalised match for drugs,
+diagnoses and dates so "Taxol" vs "paclitaxel" is not a miss; character-offset
+partial-match P/R/F1 for spans, as in the i2b2 / n2c2 clinical IE tasks), since "exact and
+normalised match for the extracted fields" was too coarse to survive the question.
+
+**2. "specificity (why?)"** (Q1.2c) — a fair challenge; specificity is genuinely weak
+under 5% prevalence and the original list asserted it without justification. Rather than
+drop it, it is now defended narrowly and with the weakness stated: clinicians read
+performance as a sensitivity/specificity pair, so omitting it hurts communication with the
+people who act on the output — but specificity is 1 − FPR and therefore carries exactly
+the flaw that makes ROC-AUC misleading here, and a model can post 0.95 specificity while
+generating more false positives than true positives. Conclusion made explicit: report
+specificity for communication, lead on PPV for decisions. Also relabelled "precision" as
+"precision (PPV)" so the clinical and ML vocabulary are tied together.
