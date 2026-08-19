@@ -234,3 +234,38 @@ bullets in the submitted artefact.
 
 Bullets were compressed to short noun phrases per "as concise as possible" — no full
 sentences. Counts: 4/2, 4/2, 5/3 strengths/weaknesses.
+
+### Comment round 2 — Q1.1a licence example and precision in the table
+
+Two `@claude` comments on Q1.1a, both handled.
+
+**1. "you mention it in the Weaknesses of qwen3.5"** — correct catch: the caveat
+paragraph claimed the Hebrew point was treated "once here", while Qwen's weaknesses
+still carried "multilingual breadth is not evidence of Hebrew *clinical* competence".
+Removed from Qwen's cell. Nemotron's "Hebrew is not an officially supported language"
+was **kept**, because it is a different and genuinely model-specific claim — declared
+language support is not the same thing as clinical competence. The caveat paragraph
+was rewritten to draw exactly that distinction, so it no longer over-claims.
+Qwen's vacated bullet was replaced with a role-based weakness ("not the accuracy
+ceiling — hard negation and temporality cases must be escalated, not solved here"),
+chosen because it needs no external spec verification, unlike a claim about the
+model's feature set.
+
+**2. "Give example to the license (LLAMA is one) the numeric precision should be part
+of the table"** — both done:
+- Llama named as the standard example of an open-weight-but-restricted licence
+  (acceptable-use terms plus a monthly-active-user threshold requiring separate
+  permission from Meta), contrasted against Apache 2.0.
+- Precision moved into the table, grouped with tier and licence inside the model cell
+  rather than as a fifth column — the table is already wide with bulleted cells, and
+  tier/licence/precision are all deployment facts about the same model, so they cohere
+  in one cell. VRAM figures labelled as weights-only approximations (≈2 bytes/param at
+  BF16, ≈1 at FP8, KV cache excluded) so they are not read as measured numbers.
+- Two knock-on tidies: Nemotron's GPU weakness tightened to "needs 2–4× the GPUs of
+  gpt-oss at comparable precision" now that the table carries the figures, and the
+  duplicated "fits a single 80 GB GPU" dropped from gpt-oss's strengths since the
+  Precision line now states it.
+
+**Candidate edit noted:** the "Selection is empirical, not a priori" paragraph was
+deleted from Q1.1a in the same pass. Not restored — flagged to the candidate to confirm
+whether that was deliberate, since it carried the answer's main judgment signal.

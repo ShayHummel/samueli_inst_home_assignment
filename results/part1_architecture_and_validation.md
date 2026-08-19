@@ -36,28 +36,27 @@ below encode that as two competing hypotheses for the escalation tier:
 
 | Model | Strengths | Weaknesses | Best-suited clinical use case |
 | --- | --- | --- | --- |
-| **Qwen3.5-27B**<br>*extraction tier*<br>`Apache 2.0` | • Broad multilingual coverage — the reason to evaluate it on Hebrew/English notes<br>• Manageable 27B footprint<br>• Long context<br>• Serves structured extraction efficiently (vLLM / TGI) | • Dense: less compute-efficient per parameter than a similarly sized MoE<br>• Multilingual breadth is not evidence of Hebrew *clinical* competence | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
-| **gpt-oss-120b**<br>*reasoning tier*<br>`Apache 2.0` | • Strong reasoning and instruction-following<br>• Configurable reasoning effort<br>• Native structured-output support<br>• 117B total but only ~5.1B active — fits a single 80 GB GPU, so a genuinely large reasoning model is practical on-prem | • Slower and heavier than the extraction tier — reserve for escalated cases only<br>• Text-only | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
-| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>`NVIDIA Open Model Licence` | • Strong reasoning<br>• Efficient MoE — ~12B active of 120B<br>• Switchable reasoning / non-reasoning modes<br>• Very long context<br>• NVIDIA-optimised serving stack — matters if the hospital is already NVIDIA-heavy | • Materially more GPU than gpt-oss in its documented BF16 configuration<br>• Hebrew is not an officially supported language<br>• General / agentic rather than clinically specialised | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
+| **Qwen3.5-27B**<br>*extraction tier*<br>Licence: `Apache 2.0`<br>Precision: BF16 ≈54 GB → FP8 ≈27 GB | • Broad multilingual coverage — the reason to evaluate it on Hebrew/English notes<br>• Manageable 27B footprint<br>• Long context<br>• Serves structured extraction efficiently (vLLM / TGI) | • Dense: less compute-efficient per parameter than a similarly sized MoE<br>• Not the accuracy ceiling — hard negation and temporality cases must be escalated, not solved here | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
+| **gpt-oss-120b**<br>*reasoning tier*<br>Licence: `Apache 2.0`<br>Precision: ships natively MXFP4, ≈80 GB → 1 GPU | • Strong reasoning and instruction-following<br>• Configurable reasoning effort<br>• Native structured-output support<br>• 117B total but only ~5.1B active — a genuinely large reasoning model that is practical on-prem | • Slower and heavier than the extraction tier — reserve for escalated cases only<br>• Text-only | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
+| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>Licence: `NVIDIA Open Model Licence`<br>Precision: BF16 ≈240 GB → 4×80 GB; FP8 ≈120 GB → 2×80 GB | • Strong reasoning<br>• Efficient MoE — ~12B active of 120B<br>• Switchable reasoning / non-reasoning modes<br>• Very long context<br>• NVIDIA-optimised serving stack — matters if the hospital is already NVIDIA-heavy | • Needs 2–4× the GPUs of gpt-oss at comparable precision<br>• Hebrew is not an officially supported language<br>• General / agentic rather than clinically specialised | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
 
-**A caveat that applies to all three, not to any one of them.** None has established Hebrew
-*clinical* performance. That is a property of the current open-weight landscape rather than a
-distinguishing weakness of a particular model, so I treat it once here and address the
-mitigation in (b).
+**A caveat that applies to all three, not to any one of them.** Declared language support
+differs between them — hence Nemotron's row — but *clinical* Hebrew performance is unestablished
+for all three. That is a property of the current open-weight landscape rather than a
+distinguishing weakness of any one model, so it is stated once here rather than repeated per
+row, and the mitigation is in (b).
 
-**Selection is empirical, not a priori.** These are candidates, not a final choice. Selection
-should rest on a hospital-specific benchmark over de-identified Hebrew/English oncology notes,
-measuring extraction and classification quality, faithfulness, JSON schema adherence, latency,
-throughput and GPU memory. Public general-purpose benchmarks are useful for shortlisting
-candidates but are not sufficient evidence for clinical deployment.
-
-**Two deployment constraints I would record alongside the benchmark.** *Licence:* on-prem
-terms are load-bearing — a restrictive or non-commercial licence can disqualify a model
-regardless of how it benchmarks, so it belongs next to the technical properties rather than in
-a footnote. *Serving precision:* the GPU figures above are BF16, whereas at volume I would
-serve the extraction tier quantised (FP8 or AWQ). Whether quantisation degrades extraction
-quality or JSON schema adherence is an explicit validation question, not an assumption — I
-would re-run the same held-out clinical set at each candidate precision.
+**On the two deployment constraints in the table.** *Licence:* on-prem terms are
+load-bearing, and "open-weight" does not mean unrestricted. Llama is the standard example — its
+community licence carries acceptable-use terms and a monthly-active-user threshold above which
+separate permission from Meta is required, so it needs legal sign-off in a way Apache 2.0 does
+not. A restrictive or non-commercial licence can therefore disqualify a model regardless of how
+it benchmarks, which is why the licence sits in the table beside the technical properties.
+*Serving precision:* the VRAM figures are weights-only approximations (≈2 bytes per parameter
+at BF16, ≈1 at FP8) and exclude KV cache, so real headroom is lower than they suggest. At
+volume I would serve the extraction tier quantised, and treat "does quantisation degrade
+extraction quality or JSON schema adherence?" as an explicit validation question rather than an
+assumption — re-running the same held-out clinical set at each candidate precision.
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
