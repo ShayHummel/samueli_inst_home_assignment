@@ -1,5 +1,20 @@
 # Part 1 — Architecture & Validation
 
+<!-- ---------------------------------------------------------------------------
+COMMENTS TO CLAUDE
+
+Mark feedback inline, next to whatever it refers to, in this form:
+
+    > **@claude:** rewrite this cell, it repeats the row above
+
+I action each one and delete the marker once done, so an empty grep means
+everything has been handled:
+
+    grep -n '@claude' results/*.md
+
+These HTML comment blocks do not render, so they stay out of the submitted PDF.
+---------------------------------------------------------------------------- -->
+
 ---
 
 ## Q1.1 — On-prem model selection
@@ -19,9 +34,9 @@ below encode that as two competing hypotheses for the escalation tier:
 
 | Model | Strengths | Weaknesses | Best-suited clinical use case |
 | --- | --- | --- | --- |
-| **Qwen3.5-27B**<br>*extraction tier* | Broad multilingual coverage — the main reason to evaluate it on mixed Hebrew/English notes; manageable 27B footprint; long context; serves structured extraction efficiently under local serving (vLLM / TGI). | Dense inference is less compute-efficient per parameter than a similarly sized MoE; broad multilingual ability is not evidence of Hebrew *clinical* competence. | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
-| **gpt-oss-120b**<br>*reasoning tier* | Strong reasoning and instruction-following; configurable reasoning effort; native structured-output support; Apache 2.0. 117B total parameters but only ~5.1B active, so it fits a single 80 GB GPU — a genuinely large reasoning model that is practical on-prem. | Slower and heavier than the extraction tier, so it is worth reserving for escalated cases only; text-only. | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
-| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative* | Strong reasoning; efficient MoE (~12B active of 120B); switchable reasoning / non-reasoning modes; very long context; NVIDIA-optimised serving stack, which matters if the hospital is already NVIDIA-heavy. | Needs materially more GPU than gpt-oss in its documented BF16 configuration; Hebrew is not an officially supported language; general / agentic rather than clinically specialised. | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
+| **Qwen3.5-27B**<br>*extraction tier*<br>`Apache 2.0` | Broad multilingual coverage — the main reason to evaluate it on mixed Hebrew/English notes; manageable 27B footprint; long context; serves structured extraction efficiently under local serving (vLLM / TGI). | Dense inference is less compute-efficient per parameter than a similarly sized MoE; broad multilingual ability is not evidence of Hebrew *clinical* competence. | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
+| **gpt-oss-120b**<br>*reasoning tier*<br>`Apache 2.0` | Strong reasoning and instruction-following; configurable reasoning effort; native structured-output support. 117B total parameters but only ~5.1B active, so it fits a single 80 GB GPU — a genuinely large reasoning model that is practical on-prem. | Slower and heavier than the extraction tier, so it is worth reserving for escalated cases only; text-only. | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
+| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>`NVIDIA Open Model Licence` | Strong reasoning; efficient MoE (~12B active of 120B); switchable reasoning / non-reasoning modes; very long context; NVIDIA-optimised serving stack, which matters if the hospital is already NVIDIA-heavy. | Needs materially more GPU than gpt-oss in its documented BF16 configuration; Hebrew is not an officially supported language; general / agentic rather than clinically specialised. | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
 
 **A caveat that applies to all three, not to any one of them.** None has established Hebrew
 *clinical* performance. That is a property of the current open-weight landscape rather than a
@@ -33,6 +48,14 @@ should rest on a hospital-specific benchmark over de-identified Hebrew/English o
 measuring extraction and classification quality, faithfulness, JSON schema adherence, latency,
 throughput and GPU memory. Public general-purpose benchmarks are useful for shortlisting
 candidates but are not sufficient evidence for clinical deployment.
+
+**Two deployment constraints I would record alongside the benchmark.** *Licence:* on-prem
+terms are load-bearing — a restrictive or non-commercial licence can disqualify a model
+regardless of how it benchmarks, so it belongs next to the technical properties rather than in
+a footnote. *Serving precision:* the GPU figures above are BF16, whereas at volume I would
+serve the extraction tier quantised (FP8 or AWQ). Whether quantisation degrades extraction
+quality or JSON schema adherence is an explicit validation question, not an assumption — I
+would re-run the same held-out clinical set at each candidate precision.
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
@@ -77,12 +100,20 @@ Must cover:
   known-difficult clinical cases. Two clinicians annotate each note independently, working
   from explicit written annotation guidelines and following a calibration phase.
 - **Agreement metric:** Cohen's κ for the categorical label, or Fleiss' κ where three or more
-  raters annotate the same notes.
+  raters annotate the same notes. κ is the right instrument for a fixed-category label, but
+  span-level agreement on the *extracted fields* is not a κ problem — there is no fixed
+  category set and no well-defined negative class. For those I would report pairwise F1 between
+  annotators over spans, or Krippendorff's α where annotators skip items or the number of
+  raters varies between notes.
 - **Disagreement resolution:** Disagreements are adjudicated by a third, senior clinician,
   whose decision defines the gold label.
 - **Model-vs-human metrics:** Precision, recall, F1 and the confusion matrix for the binary
   label; exact and normalised match for the extracted fields — all measured against the
-  adjudicated gold standard.
+  adjudicated gold standard. Critically, these are interpreted **relative to inter-annotator
+  agreement, which is the practical ceiling.** A model scoring at or near human-human agreement
+  is performing as well as the task definition permits, and the residual gap to 1.0 reflects
+  irreducible ambiguity in the notes rather than a model defect. Reporting model F1 without
+  that reference point overstates how much headroom actually remains.
 
 ### c) Which metrics would you report for the binary label, and when is ROC-AUC misleading? If the positive class has ~5% prevalence, what do you report instead?
 
@@ -99,6 +130,14 @@ likewise uninformative: labelling every case negative already scores 95%.
 I would therefore emphasise precision, recall, F1 and PR-AUC, with particular attention to
 recall wherever false negatives carry high clinical cost.
 
+Two reporting disciplines matter as much as the choice of metric. First, precision, recall and
+F1 are all **threshold-dependent**, so I would fix and state an explicit operating threshold —
+chosen on validation data against the clinical cost ratio of a false negative to a false
+positive, not left at a default of 0.5 — and report the point metrics at that threshold
+alongside the threshold-free AUCs. Second, **PR-AUC is prevalence-dependent**: its baseline is
+the positive rate itself, so PR-AUC values are not comparable across datasets, sites or time
+periods with different prevalence. I would always report prevalence next to it.
+
 ### d) What is "LLM-as-a-judge"? Give two concrete risks and a mitigation for each. How would you decide whether the judge itself can be trusted?
 
 **Answer:**
@@ -112,10 +151,15 @@ recall wherever false negatives carry high clinical cost.
 - **Risk 2 — prompt, order and style sensitivity:** judgments may change because of
   presentation, verbosity or ordering rather than correctness. *Mitigation:* a standardised
   rubric, deterministic decoding, randomised ordering, and explicit robustness tests.
-- **Trusting the judge:** the judge must itself be validated against clinician judgments on a
-  representative gold-standard subset, measuring agreement and explicitly analysing the
-  disagreements. A larger or stronger model should not automatically be considered a reliable
-  judge.
+- **Trusting the judge:** the judge is just another model under evaluation, so it must itself
+  be validated against clinician judgments on a representative gold-standard subset.
+  Concretely, I would measure judge-vs-clinician agreement with Cohen's κ and compare it
+  against the **human-human κ on the same items**: a judge that agrees with clinicians about as
+  well as clinicians agree with each other is usable, while one materially below that ceiling
+  is not — regardless of its size. I would also analyse the disagreements explicitly rather
+  than reporting only the aggregate, and would trust the judge only over the case distribution
+  on which it was validated. A larger or stronger model should not automatically be considered
+  a reliable judge.
 
 ### e) Faithfulness: propose a concrete method to detect when an extracted value is not actually supported by the source note, and how you would quantify this across a dataset.
 
@@ -126,17 +170,29 @@ source note:
 
 `field → extracted value → supporting evidence`
 
-Validation then runs in two stages. First, programmatically verify that the evidence span
-actually appears in the source note. Second, verify that the span genuinely supports the
-extracted value — using deterministic normalisation and rules where possible, and a
-separately validated entailment or judge model for the harder cases.
+Validation then runs in two stages. The two stages fail in *different* ways, so I would keep
+their counts separate rather than collapsing them into a single number:
+
+1. **Span presence** — programmatically verify the evidence span actually appears in the source
+   note, after normalising whitespace, casing and punctuation. Without that normalisation,
+   exact matching produces false failures on quotes that were merely re-wrapped or re-cased. A
+   span that is genuinely absent means the model **fabricated its own evidence**.
+2. **Span support** — verify the span actually entails the extracted value, using deterministic
+   normalisation and rules where possible and a separately validated entailment or judge model
+   for the harder cases. A span that is present but does not entail the value means the
+   evidence is real but the **inference drawn from it is unsupported**.
+
+The distinction is worth the extra bookkeeping because the remedies differ: fabricated evidence
+is a grounding failure, addressed by constrained decoding and forcing verbatim span copying,
+whereas unsupported inference is a reasoning failure, addressed by prompt and model changes.
 
 Across the dataset I would report:
 
 > **Evidence-supported extraction rate** = supported extracted fields / all extracted fields
 
-I would additionally put a sample through clinician review, weighted towards unsupported and
-clinically high-risk extractions.
+broken down by the two failure modes above and by field, since some fields are systematically
+harder to ground than others. I would additionally put a sample through clinician review,
+weighted towards unsupported and clinically high-risk extractions.
 
 ### f) You measure F1 = 0.92 on your held-out test set, yet clinicians report the system is unreliable in production. Give at least four plausible causes and one diagnostic step for each.
 
@@ -150,6 +206,8 @@ clinically high-risk extractions.
 | 4 | Aggregate F1 hides subgroup failures. | Stratify performance by language (Hebrew / English / mixed), note type, department and time period. |
 | 5 | F1 does not capture clinical severity — errors are not equally costly. | Clinician error analysis categorised by error type and clinical consequence, especially false negatives. |
 | 6 | Failures outside the LLM: truncation, parsing, preprocessing or retrieval. | Trace production cases end to end — raw note → prompt → raw model output → parser → stored result. |
+| 7 | Human factors rather than model quality: output is surfaced without its supporting evidence or confidence, so clinicians cannot verify a result and withhold trust even when it is correct. | Observe clinicians using the system and interview them on what they would need in order to accept a result; measure how often they override outputs that were in fact correct. |
+| 8 | Test-set label noise. F1 measures agreement with the gold standard, so if the gold labels are themselves wrong, the metric is confidently measuring the wrong target. | Re-adjudicate a random sample of test labels with a senior clinician and report inter-annotator agreement on the test set itself. |
 
 A high aggregate F1 is therefore insufficient evidence of clinical reliability. Validation
 should include confidence intervals, subgroup analysis, temporal and external validation,

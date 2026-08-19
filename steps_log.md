@@ -151,3 +151,69 @@ Recorded here so the reasoning is not lost if they are declined:
 ### Open questions
 - Whether to apply any of the seven suggested strengthenings above.
 - Part 2 not started; awaiting go-ahead.
+
+---
+
+## 2026-08-19 — Session 3: Part 1 strengthenings applied
+
+**Part:** Part 1 — Architecture & Validation.
+
+### Done
+All seven strengthenings offered at the end of session 2 were approved and applied
+(10 edits, since several touched more than one location):
+
+1. **Q1.1a licences** — added per model in the name cell as inline code
+   (`Apache 2.0`, `Apache 2.0`, `NVIDIA Open Model Licence`) rather than as a fifth
+   column, which would have pushed the table past readable width. gpt-oss's licence
+   was moved out of its Strengths cell so all three are stated in the same place.
+2. **Q1.1a licence-as-criterion + quantisation** — one compact paragraph covering
+   both: licence terms are load-bearing on-prem, and the BF16 GPU figures imply a
+   quantised (FP8/AWQ) serving reality where "does quantisation degrade extraction
+   quality or JSON adherence?" is a validation question, not an assumption.
+3. **Q1.2b span-level agreement** — κ is correct for the fixed-category label but
+   not for span extraction (no fixed category set, no well-defined negative class);
+   added pairwise annotator F1, or Krippendorff's α where raters skip items or the
+   rater count varies.
+4. **Q1.2b human ceiling** — model metrics are now explicitly interpreted relative
+   to inter-annotator agreement as the practical ceiling, with the residual gap to
+   1.0 attributed to irreducible ambiguity rather than model defect.
+5. **Q1.2c reporting discipline** — an explicit operating threshold chosen against
+   the clinical FN:FP cost ratio (not a default 0.5) with point metrics reported at
+   it, plus the note that PR-AUC's baseline is prevalence itself, so it is not
+   comparable across sites or periods with different prevalence.
+6. **Q1.2d judge trust made measurable** — judge-vs-clinician Cohen's κ compared
+   against human-human κ on the same items, plus trusting the judge only over the
+   distribution it was validated on.
+7. **Q1.2e faithfulness failure modes split** — span-absent (fabricated evidence,
+   a grounding failure fixed by constrained decoding / verbatim span copying) vs.
+   span-present-but-not-entailing (unsupported inference, a reasoning failure fixed
+   by prompt and model changes). Also: normalise whitespace, casing and punctuation
+   before the presence check, or exact matching produces false failures on
+   re-wrapped quotes. Metric now broken down by failure mode and by field.
+8. **Q1.2f two further cause families** — human factors (output surfaced without
+   evidence or confidence, so clinicians cannot verify it and withhold trust even
+   when it is correct) and test-set label noise (F1 measures agreement with the
+   gold standard, so wrong gold labels mean the metric confidently measures the
+   wrong target). The cause table is now 8 rows against a required minimum of 4.
+
+### Decisions + rationale
+- **Comment convention added** at the top of the answers file as an HTML comment
+  block: feedback is marked inline as `> **@claude:** …`, actioned, then the marker
+  deleted, so `grep -n '@claude' results/*.md` returning nothing means everything
+  has been handled. HTML comments do not render, so the convention stays out of the
+  submitted PDF.
+- **Length tradeoff accepted knowingly.** Part 1 grew from ~1,730 to ~2,455 words.
+  The rubric prefers concise answers, so this is a deliberate call: the additions
+  are substantive (named metrics, explicit ceilings, separated failure modes) rather
+  than padding, and the density-per-sentence did not drop. Flagged for a trim pass
+  before the PDF if it reads long as a whole.
+
+### Artefacts
+- `results/part1_architecture_and_validation.md` — Part 1 complete with all
+  strengthenings; 3 tables verified for consistent column counts.
+
+### Open questions
+- `Qwen3.5-27B` and `Nemotron 3 Super 120B-A12B` specs still unverified against
+  model cards — now also including the two licence strings just added.
+- Candidate is doing a full re-read pass and will leave `@claude` comments.
+- Part 2 not started; awaiting go-ahead.
