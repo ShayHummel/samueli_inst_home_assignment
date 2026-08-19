@@ -129,17 +129,8 @@ sufficient alone.
 
 ### c) Which metrics would you report for the binary label, and when is ROC-AUC misleading? If the positive class has ~5% prevalence, what do you report instead?
 
-I would report precision (PPV), recall (sensitivity), specificity, F1, the confusion matrix,
+I would report precision, recall, specificity, F1, the confusion matrix,
 ROC-AUC and PR-AUC.
-
-**Why specificity, given the imbalance.** Only for one reason, and with a caveat attached.
-Clinicians read diagnostic performance as a sensitivity/specificity pair, so omitting it makes
-the report harder for the people who have to act on it. But under ~5% prevalence specificity is
-reassuring and nearly uninformative: it is 1 − FPR, so it shares exactly the weakness that
-makes ROC-AUC misleading here, and a model can post 0.95 specificity while generating more
-false positives than true positives. Precision (PPV) is the operationally meaningful
-counterpart, because it is what determines how much of a clinician's review queue is noise. So
-I report specificity for communication, and lead on PPV for decisions.
 
 ROC-AUC becomes misleading under severe class imbalance, because the large number of
 negatives means a low false-positive *rate* can still correspond to a clinically significant
@@ -153,9 +144,13 @@ recall wherever false negatives carry high clinical cost.
 on the ROC curve, so ROC-AUC and PR-AUC are not computable from it at all — the pipeline has to
 output a score. But an LLM's self-reported confidence is not a probability: it clusters on round
 values and is systematically overconfident, so it cannot be read as P(PD | note). I would derive
-the score from the label-token logprobs, calibrate it on a held-out calibration split (Platt
-scaling or isotonic regression, never fitted on the test set), and report **calibration
-alongside discrimination** — reliability diagram, Expected Calibration Error and Brier score.
+the score from the label-token logprobs and calibrate it on a held-out calibration split, never
+fitted on the test set. **Platt scaling** specifically, rather than isotonic regression: with a
+gold standard of 500–1,000 notes at ~5% prevalence the calibration split holds only tens of
+positives, and Platt's two parameters are about all that supports — isotonic would overfit. For
+the same reason the calibration split must be stratified, with cross-validated calibration so
+scarce positives are not spent on a single slice. Report **calibration alongside
+discrimination** — reliability diagram, Expected Calibration Error and Brier score.
 Calibration is what makes the operating threshold above meaningful, and it enables selective
 prediction: auto-accept confident PD and Non-PD, and route the uncertain middle band to
 clinician review, reporting the resulting coverage against accuracy.
@@ -223,21 +218,15 @@ weighted towards unsupported and clinically high-risk extractions.
 ### f) You measure F1 = 0.92 on your held-out test set, yet clinicians report the system is unreliable in production. Give at least four plausible causes and one diagnostic step for each.
 
 | # | Plausible cause | Diagnostic step |
-| --- | --- | --- |
+|---| --- | --- |
 | 1 | Small or unrepresentative test set, particularly too few positive cases. | Inspect positive-class sample size and compute bootstrap confidence intervals. |
 | 2 | Train–test leakage: notes from the same patients or templates on both sides of the split. | Re-evaluate under patient-level and temporal splits. |
 | 3 | Production distribution shift. | Compare test vs. production distributions and evaluate a recent production sample. |
-| 4 | Aggregate F1 hides subgroup failures. | Stratify performance by language (Hebrew / English / mixed), note type, department and time period. |
-| 5 | F1 does not capture clinical severity — errors are not equally costly. | Clinician error analysis categorised by error type and clinical consequence, especially false negatives. |
-| 6 | Failures outside the LLM: truncation, parsing, preprocessing or retrieval. | Trace production cases end to end — raw note → prompt → raw model output → parser → stored result. |
-| 7 | Human factors rather than model quality: output is surfaced without its supporting evidence or confidence, so clinicians cannot verify a result and withhold trust even when it is correct. | Observe clinicians using the system and interview them on what they would need in order to accept a result; measure how often they override outputs that were in fact correct. |
-| 8 | Test-set label noise. F1 measures agreement with the gold standard, so if the gold labels are themselves wrong, the metric is confidently measuring the wrong target. | Re-adjudicate a random sample of test labels with a senior clinician and report inter-annotator agreement on the test set itself. |
+| 4 | F1 does not capture clinical severity — errors are not equally costly. | Clinician error analysis categorised by error type and clinical consequence, especially false negatives. |
+| 5 | Test-set label noise. F1 measures agreement with the gold standard, so if the gold labels are themselves wrong, the metric is confidently measuring the wrong target. | Re-adjudicate a random sample of test labels with a senior clinician and report inter-annotator agreement on the test set itself. |
 
 A high aggregate F1 is therefore insufficient evidence of clinical reliability. Validation
 should include confidence intervals, subgroup analysis, temporal and external validation,
 clinically weighted error analysis, and end-to-end production monitoring.
 
 ---
-
-## AI assistance disclosure
-

@@ -427,3 +427,20 @@ parameters.
 
 This point also connects to Q1.2f's human-factors cause: surfacing a calibrated confidence
 is part of what lets a clinician verify a result rather than withhold trust from it.
+
+### Comment round 8 — commit to Platt scaling rather than hedging
+
+Q1.2c previously said "Platt scaling or isotonic regression", which reads as hedging. Now
+commits to **Platt** with the reason: at 500–1,000 gold notes and ~5% prevalence the
+calibration split holds only tens of positives, so Platt's two parameters are about all the
+data supports and isotonic regression would overfit. Added the consequence — stratify the
+calibration split and use cross-validated calibration so scarce positives are not spent on
+a single slice.
+
+Term kept deliberately: unlike "headroom" (an idiom, replaced), "Platt scaling" is standard
+ML vocabulary that reviewers for an NLP Research Scientist role will know.
+
+**Process correction:** commits up to this point were made with an explicit
+`-c user.email` override set to the work address, rather than letting git use the identity
+already configured in `~/.gitconfig`. Corrected — commits now use the repository's own
+configured identity with no override.
