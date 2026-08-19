@@ -364,3 +364,31 @@ the flaw that makes ROC-AUC misleading here, and a model can post 0.95 specifici
 generating more false positives than true positives. Conclusion made explicit: report
 specificity for communication, lead on PPV for decisions. Also relabelled "precision" as
 "precision (PPV)" so the clinical and ML vocabulary are tied together.
+
+### Comment round 6 — clarify the inter-annotator ceiling
+
+Candidate reported not understanding the Q1.2b "Interpretation" bullet. Treated as a
+defect in the writing rather than in the reader: the bullet asserted the abstraction
+("the residual gap to 1.0 reflects irreducible ambiguity") without ever demonstrating
+it, so the reader had to reconstruct the mechanism unaided.
+
+Rewritten around a concrete worked case: two clinicians agree on 85 of 100 notes; the 15
+disputed notes have no single right answer, since the adjudicator only picked one
+defensible reading over another; so a model at 0.83 is at the task's ceiling rather than
+17 points from solved. Added the actionable consequence, which the original left implicit
+— at the ceiling, further gains come from sharpening the annotation guidelines (raising
+the ceiling) rather than from more model work, because chasing the residual gap just fits
+the idiosyncrasies of whichever annotator adjudicated.
+
+This also makes the Q1.2b IRR metric do double duty, which is likely why the assignment
+asks for it by name: κ is not only an annotator quality check, it is the reference line
+every model number is read against.
+
+Length: 58 → 101 words on the first attempt, trimmed to ~75. Concrete numbers cost words
+but buy comprehension; the trim removed hedging, not the example.
+
+**Follow-up:** the rewritten bullet used "headroom", which the candidate flagged as
+unfamiliar. Replaced with "room for improvement". Worth generalising as a rule for the
+submission: the reviewers are clinical-research readers and may not be native English
+speakers, so idiomatic shorthand should be avoided where a plain phrase does the same
+work. No other instances of the term in `results/`.

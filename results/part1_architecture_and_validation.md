@@ -120,11 +120,12 @@ sufficient alone.
   this pipeline exists to catch. Second, it ignores position, so it cannot distinguish a quote
   taken from the right part of the note from lexically similar text elsewhere — which is why
   (a) scores spans by character offset rather than by lexical overlap.
-- **Interpretation:** all of the above are read **relative to inter-annotator agreement, which
-  is the practical ceiling.** A model scoring at or near human-human agreement is performing as
-  well as the task definition permits, and the residual gap to 1.0 reflects irreducible
-  ambiguity in the notes rather than a model defect. Reporting model F1 without that reference
-  point overstates how much headroom actually remains.
+- **Interpretation:** report these **against inter-annotator agreement, not against 1.0.** If
+  two clinicians agree on only 85 of 100 notes, the 15 they dispute have no single right answer
+  — the adjudicator merely picked one defensible reading. A model at 0.83 is then at the task's
+  ceiling, not 17 points from solved. Without that reference line, F1 suggests far more room for
+  improvement than actually exists, and it misdirects effort: at the ceiling, gains come from
+  sharpening the annotation guidelines, not from a better model.
 
 ### c) Which metrics would you report for the binary label, and when is ROC-AUC misleading? If the positive class has ~5% prevalence, what do you report instead?
 
