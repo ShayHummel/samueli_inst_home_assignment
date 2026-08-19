@@ -78,3 +78,76 @@ in the main checkout on `main`.
 **Rationale for working on `main` directly:** the theoretical answers in `results/`
 are written by the candidate, so the files must sit at the paths the IDE already
 points at. A worktree risks two divergent copies of the same answer file.
+
+---
+
+## 2026-08-19 — Session 2: Part 1 answered
+
+**Part:** Part 1 — Architecture & Validation (Q1.1 a–b, Q1.2 a–f).
+
+### Done
+- All eight Part 1 sub-questions answered. Answers were written by the candidate;
+  my contribution was structural and phrasing refinement only, plus flagging
+  claims that need external verification.
+- `results/part1_architecture_and_validation.md` is complete (~1,700 words).
+- Drafting hints (per-answer length guidance) stripped now that the part is
+  complete — they were scaffolding for writing, not content for the submitted PDF.
+
+### Decisions + rationale
+- **Q1.1a — dropped the "Why include it" column.** It duplicated the closing
+  paragraph and widened the table past readability. The tiering logic was promoted
+  to a "Deployment thesis" lead-in above the table, and each row tagged with its
+  tier (extraction / reasoning / reasoning alternative), so the reader has the
+  two-tier frame before reaching the comparison.
+- **Q1.1a — Hebrew caveat lifted out of all three weakness cells.** It appeared in
+  every row, which spends three weakness cells on one point. Stated once after the
+  table as a property of the open-weight landscape rather than a discriminator
+  between models, with the mitigation deferred to Q1.1b where the question asks
+  for it. This freed each cell for model-specific criticism.
+- **Q1.1a — gpt-oss's MoE sizing moved into Strengths.** "117B total / ~5.1B active
+  / single 80 GB GPU" is the reason a 120B reasoning model is deployable on-prem at
+  all, so it belongs in Strengths rather than in a rationale column.
+- **Q1.2a — reframed the human-evaluation "misses" cell.** "Expensive" is a cost
+  constraint, not a blind spot; merged into "limited sample size, being cost-bound,
+  so rare cases may be underrepresented" so the column answers the question asked.
+- **Tab-separated pasted tables converted to real Markdown tables** and verified
+  programmatically for consistent column counts (3 tables, all OK).
+
+### Verification notes (open, candidate to confirm before submission)
+- `Qwen3.5-27B` and `Nemotron 3 Super 120B-A12B`: exact model names, parameter
+  counts, dense-vs-MoE architecture, context lengths and BF16 sizing were flagged
+  as unverifiable against my knowledge cutoff (May 2026). The Qwen weakness cell
+  asserts *dense* inference, which inverts if the model is in fact MoE.
+  `gpt-oss-120b`'s figures were confirmed.
+- arXiv 2512.11502 (Hebrew medical model, >5M de-identified records) — candidate
+  confirmed the citation is correct.
+
+### Suggested strengthenings (offered, not applied)
+Recorded here so the reasoning is not lost if they are declined:
+1. Q1.1a — licences are asymmetric (Apache 2.0 cited for gpt-oss only); licence is
+   a genuine on-prem selection criterion.
+2. Q1.1a — one clause on quantised serving (FP8/AWQ) and validating that
+   quantisation does not degrade extraction quality.
+3. Q1.2b — interpret model performance relative to inter-annotator agreement as the
+   practical ceiling; note that Cohen's κ covers the categorical label while span
+   agreement is usually pairwise F1 or Krippendorff's α.
+4. Q1.2c — report metrics at an explicit operating threshold, not only
+   threshold-free AUCs; note PR-AUC is prevalence-dependent and so not comparable
+   across datasets with different prevalence.
+5. Q1.2d — name κ for judge-vs-clinician agreement and compare it to the
+   human-human ceiling.
+6. Q1.2e — report the two faithfulness failure modes separately (span absent =
+   fabricated evidence; span present but not entailing = unsupported inference),
+   and normalise whitespace/casing before the span-presence check.
+7. Q1.2f — a seventh cause from the human-factors family (output presented without
+   evidence or confidence, so clinicians cannot verify it and lose trust even when
+   the model is right); also test-set label noise.
+
+### Artefacts
+- `results/part1_architecture_and_validation.md` (complete)
+- `.claude/settings.json` — `worktree.bgIsolation: none`, per instruction not to
+  use worktrees in this project.
+
+### Open questions
+- Whether to apply any of the seven suggested strengthenings above.
+- Part 2 not started; awaiting go-ahead.
