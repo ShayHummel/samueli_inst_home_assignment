@@ -658,3 +658,74 @@ task.
 - 2.3–2.7 still pending, and now largely determined by the architecture above.
 - Code not yet written: LangChain prompt templates, Pydantic models, the repair loop, and
   the CoT-based output validation, all to live in `src/`.
+
+---
+
+## 2026-08-19 — Session 6: Part 2 code
+
+**Part:** Part 2 implementation under `src/`.
+
+### Files
+| Path | Contents |
+| --- | --- |
+| `src/schema.py` | `ClinicalClassification` Pydantic model, `Classification` enum, abstention ceiling |
+| `src/prompts/stage1_reasoning.py` | Stage 1 LangChain `ChatPromptTemplate` (reasoning) |
+| `src/prompts/stage2_structuring.py` | Stage 2 template (JSON formatting) |
+| `src/prompts/repair.py` | Stage 4 template (bounded schema repair) |
+| `src/prompts/self_check.py` | Adversarial CoT audit template |
+| `src/prompts/_util.py` | Brace escaping and the shared JSON contract block |
+| `src/validation.py` | JSON extraction, tail parsers, grounding check, `verify_output`, `FailureTally` |
+| `src/pipeline.py` | `classify_note` / `classify_notes` — the flow |
+| `tests/test_validation.py` | 30 tests |
+| `tests/test_pipeline.py` | 19 tests |
+
+49 tests, all passing under `uv run pytest`.
+
+### Decisions + rationale
+- **Brace escaping is programmatic, not hand-written.** LangChain's default
+  `f-string` template format reads `{"classification": ...}` as a variable, so the
+  embedded JSON contract would raise at render time. `escape_braces()` doubles the
+  braces from a single readable source string, which removes a whole class of silent
+  template bug. A test asserts the rendered stage-2 prompt still contains real single
+  braces and no leaked `{{`.
+- **Prompt/model drift is caught by a test, not by codegen.** The prose contract the
+  model reads is hand-written for legibility; `test_prompt_schema_block_matches_the_pydantic_model`
+  asserts its field names match `ClinicalClassification.model_fields`. Generating the
+  block from JSON Schema would be drift-proof but unreadable to the model.
+- **Two rules live in Pydantic rather than the prompt**, because a prompt can only ask
+  while a validator can refuse: `extra="forbid"` (off-contract fields are a
+  malformation, not a bonus) and *PD requires at least one evidence quote* (asserting
+  progression while quoting nothing is exactly the fabrication Q1.2e targets).
+- **Punctuation is normalised, not stripped**, in the grounding check. Stripping it
+  would let "no progression" match "progression", inverting a negation — the precise
+  error the pipeline exists to prevent. Test covers this.
+- **JSON extraction uses brace matching, not a greedy regex.** `{.*}` would let
+  trailing prose containing a brace drag the candidate past the object's real end;
+  a truncated object correctly yields `NO_JSON_FOUND` rather than a decode error.
+- **The LLM is injected as a plain callable** (`LlmCallable`), so the flow is testable
+  without a model and is indifferent to vLLM / Ollama / HTTP. Tests drive the repair
+  loop deterministically with a scripted fake.
+- **Repair receives the concrete validator error**, not "that was wrong". A model told
+  `confidence_score: input should be less than or equal to 1` can fix it; one told
+  "invalid JSON" guesses. Test asserts the error text reaches the repair prompt.
+- **A malformed audit is treated as no audit, never as approval** — otherwise an
+  off-contract auditor silently passes every record it failed to evaluate.
+- **Audit sees the note and the output but not stage 1's reasoning.** Shown the
+  original argument, an auditor ratifies it rather than testing it independently.
+  Asserted by test.
+- **Stage 2 never receives the note.** Asserted by test, because it is a security
+  property rather than a convention: it confines the prompt-injection surface to
+  stage 1.
+
+### Dependency layout corrected
+The original per-part optional extras (`part2`, `part3`) meant a bare `uv sync`
+produced an empty environment, so the IDE's interpreter could not import `pytest` —
+which the candidate hit. Restructured: runtime and test dependencies are now in
+`[project.dependencies]`, `pytest` is in a PEP 735 `[dependency-groups] dev` (installed
+by `uv sync` by default), and only the live-PostgreSQL drivers remain optional under
+`[project.optional-dependencies] postgres`. A reviewer now gets a working environment,
+and `uv run pytest`, from `uv sync` alone.
+
+### Open
+- 2.3–2.7 written answers still pending; the code now pins the contract they describe.
+- No real model wired up yet; `LlmCallable` is the seam where one attaches.

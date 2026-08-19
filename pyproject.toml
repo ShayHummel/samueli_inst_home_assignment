@@ -4,20 +4,29 @@ version = "0.1.0"
 description = "Samueli Institute home assignment - NLP Research Scientist (clinical text & LLMs)"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
 
-[project.optional-dependencies]
-# Populated per-part as we implement. Kept explicit so reviewers see what each
-# part actually needs rather than one undifferentiated blob.
-part2 = [
+# Everything needed to run the code and the test suite. Deliberately not split
+# into per-part extras: a reviewer should get a working environment from a bare
+# `uv sync` without having to know which extra maps to which question.
+dependencies = [
     "langchain-core>=0.3",
     "pydantic>=2.7",
-]
-part3 = [
     "pandas>=2.2",
     "scikit-learn>=1.5",
+]
+
+[project.optional-dependencies]
+# Only genuinely optional extras live here: these are needed to run the Part 3.1
+# SQL against a live PostgreSQL instance, which the rest of the project does not
+# require.
+postgres = [
     "sqlalchemy>=2.0",
     "psycopg[binary]>=3.2",
+]
+
+[dependency-groups]
+# Installed by `uv sync` by default, so the IDE's interpreter can see pytest.
+dev = [
     "pytest>=8.0",
 ]
 
