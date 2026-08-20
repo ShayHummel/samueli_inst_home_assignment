@@ -4,7 +4,7 @@ Working log for the Samueli Institute home assignment (NLP Research Scientist �
 Clinical Text & LLMs). Every working session appends an entry here.
 
 **Format choice:** Markdown rather than JSON. The assignment is explicitly graded
-on *judgment and reasoning*, not just artefacts ("A well-argued partial solution
+on *judgment and reasoning*, not just artifacts ("A well-argued partial solution
 scores higher than an exhaustive but unreasoned one"). A log needs to carry
 narrative rationale — why an approach was chosen and what was rejected — which
 JSON records badly. Markdown also renders directly on GitHub for the reviewer.
@@ -12,7 +12,7 @@ JSON records badly. Markdown also renders directly on GitHub for the reviewer.
 Conventions:
 - Newest entry at the bottom.
 - Each entry: date, part of the assignment, what was done, decisions + rationale,
-  artefacts produced, open questions.
+  artifacts produced, open questions.
 - AI assistance is disclosed per the assignment's Logistics section ("you may use
   AI coding assistants — tell us where you did").
 
@@ -50,7 +50,7 @@ Conventions:
   runnable out of the box. Real PHI would never be committed — noted here because
   the assignment is set in a "no data leaves the hospital network" context.
 
-### Artefacts
+### Artifacts
 - `pyproject.toml`, `.python-version`, `steps_log.md`
 - `results/part1_architecture_and_validation.md` (question scaffold, answers pending)
 
@@ -68,7 +68,7 @@ in the main checkout on `main`.
   so no merge commit and no history rewrite), then the worktree and its branch were
   removed.
 - `hw_docs/Oncology.csv` was untracked in the main checkout and committed on the
-  branch, where git normalised its CRLF line endings to LF. Verified byte-identical
+  branch, where git normalized its CRLF line endings to LF. Verified byte-identical
   modulo line endings (matching md5 after stripping `\r`) before letting git replace
   the working-tree copy, so no data was altered.
 - `uv.lock` was salvaged from the worktree and committed. Deliberate: Q2.6 asks what
@@ -124,7 +124,7 @@ points at. A worktree risks two divergent copies of the same answer file.
 
 ### Suggested strengthenings (offered, not applied)
 Recorded here so the reasoning is not lost if they are declined:
-1. Q1.1a — licences are asymmetric (Apache 2.0 cited for gpt-oss only); licence is
+1. Q1.1a — licenses are asymmetric (Apache 2.0 cited for gpt-oss only); license is
    a genuine on-prem selection criterion.
 2. Q1.1a — one clause on quantised serving (FP8/AWQ) and validating that
    quantisation does not degrade extraction quality.
@@ -138,12 +138,12 @@ Recorded here so the reasoning is not lost if they are declined:
    human-human ceiling.
 6. Q1.2e — report the two faithfulness failure modes separately (span absent =
    fabricated evidence; span present but not entailing = unsupported inference),
-   and normalise whitespace/casing before the span-presence check.
+   and normalize whitespace/casing before the span-presence check.
 7. Q1.2f — a seventh cause from the human-factors family (output presented without
    evidence or confidence, so clinicians cannot verify it and lose trust even when
    the model is right); also test-set label noise.
 
-### Artefacts
+### Artifacts
 - `results/part1_architecture_and_validation.md` (complete)
 - `.claude/settings.json` — `worktree.bgIsolation: none`, per instruction not to
   use worktrees in this project.
@@ -162,12 +162,12 @@ Recorded here so the reasoning is not lost if they are declined:
 All seven strengthenings offered at the end of session 2 were approved and applied
 (10 edits, since several touched more than one location):
 
-1. **Q1.1a licences** — added per model in the name cell as inline code
-   (`Apache 2.0`, `Apache 2.0`, `NVIDIA Open Model Licence`) rather than as a fifth
-   column, which would have pushed the table past readable width. gpt-oss's licence
+1. **Q1.1a licenses** — added per model in the name cell as inline code
+   (`Apache 2.0`, `Apache 2.0`, `NVIDIA Open Model License`) rather than as a fifth
+   column, which would have pushed the table past readable width. gpt-oss's license
    was moved out of its Strengths cell so all three are stated in the same place.
-2. **Q1.1a licence-as-criterion + quantisation** — one compact paragraph covering
-   both: licence terms are load-bearing on-prem, and the BF16 GPU figures imply a
+2. **Q1.1a license-as-criterion + quantisation** — one compact paragraph covering
+   both: license terms are load-bearing on-prem, and the BF16 GPU figures imply a
    quantised (FP8/AWQ) serving reality where "does quantisation degrade extraction
    quality or JSON adherence?" is a validation question, not an assumption.
 3. **Q1.2b span-level agreement** — κ is correct for the fixed-category label but
@@ -187,7 +187,7 @@ All seven strengthenings offered at the end of session 2 were approved and appli
 7. **Q1.2e faithfulness failure modes split** — span-absent (fabricated evidence,
    a grounding failure fixed by constrained decoding / verbatim span copying) vs.
    span-present-but-not-entailing (unsupported inference, a reasoning failure fixed
-   by prompt and model changes). Also: normalise whitespace, casing and punctuation
+   by prompt and model changes). Also: normalize whitespace, casing and punctuation
    before the presence check, or exact matching produces false failures on
    re-wrapped quotes. Metric now broken down by failure mode and by field.
 8. **Q1.2f two further cause families** — human factors (output surfaced without
@@ -208,13 +208,13 @@ All seven strengthenings offered at the end of session 2 were approved and appli
   than padding, and the density-per-sentence did not drop. Flagged for a trim pass
   before the PDF if it reads long as a whole.
 
-### Artefacts
+### Artifacts
 - `results/part1_architecture_and_validation.md` — Part 1 complete with all
   strengthenings; 3 tables verified for consistent column counts.
 
 ### Open questions
 - `Qwen3.5-27B` and `Nemotron 3 Super 120B-A12B` specs still unverified against
-  model cards — now also including the two licence strings just added.
+  model cards — now also including the two license strings just added.
 - Candidate is doing a full re-read pass and will leave `@claude` comments.
 - Part 2 not started; awaiting go-ahead.
 
@@ -230,12 +230,12 @@ Markdown lists, so bullets inside a cell need either literal `•` characters jo
 near-universally supported, so it survives GitHub rendering and Markdown→PDF export
 alike. Raw `<ul>` inside a table cell renders correctly on GitHub but is commonly
 dropped when Markdown is converted to LaTeX/PDF, which would silently lose the
-bullets in the submitted artefact.
+bullets in the submitted artifact.
 
 Bullets were compressed to short noun phrases per "as concise as possible" — no full
 sentences. Counts: 4/2, 4/2, 5/3 strengths/weaknesses.
 
-### Comment round 2 — Q1.1a licence example and precision in the table
+### Comment round 2 — Q1.1a license example and precision in the table
 
 Two `@claude` comments on Q1.1a, both handled.
 
@@ -253,13 +253,13 @@ model's feature set.
 
 **2. "Give example to the license (LLAMA is one) the numeric precision should be part
 of the table"** — both done:
-- Llama named as the standard example of an open-weight-but-restricted licence
+- Llama named as the standard example of an open-weight-but-restricted license
   (acceptable-use terms plus a monthly-active-user threshold requiring separate
   permission from Meta), contrasted against Apache 2.0.
-- Precision moved into the table, grouped with tier and licence inside the model cell
+- Precision moved into the table, grouped with tier and license inside the model cell
   rather than as a fifth column — the table is already wide with bulleted cells, and
-  tier/licence/precision are all deployment facts about the same model, so they cohere
-  in one cell. VRAM figures labelled as weights-only approximations (≈2 bytes/param at
+  tier/license/precision are all deployment facts about the same model, so they cohere
+  in one cell. VRAM figures labeled as weights-only approximations (≈2 bytes/param at
   BF16, ≈1 at FP8, KV cache excluded) so they are not read as measured numbers.
 - Two knock-on tidies: Nemotron's GPU weakness tightened to "needs 2–4× the GPUs of
   gpt-oss at comparable precision" now that the table carries the figures, and the
@@ -289,7 +289,7 @@ Markdown headings need a preceding blank line to render reliably across parsers.
 
 **Candidate edits noted, not reverted:** the *Serving precision* half of the
 deployment-constraints paragraph was deleted, and the remaining half demoted from a bold
-lead to *Licence constraints:*. Consequence flagged to the candidate: the table's VRAM
+lead to *License constraints:*. Consequence flagged to the candidate: the table's VRAM
 figures now carry no "weights-only approximation, KV cache excluded" caveat, so they read
 as measured numbers, and strengthening #2 (validating that quantisation does not degrade
 extraction quality or JSON adherence) is no longer stated anywhere.
@@ -312,14 +312,14 @@ pipeline emits both.
 **3. "extracted text may vary thus makes it hard to compare to human labels. Requires a
 solution"** — a genuine miss that was absent, now added as a second bullet in that cell:
 free-text extractions vary in wording and span boundaries, so they do not compare to a
-human annotation by exact match. The paired mitigation is to score spans by normalised
+human annotation by exact match. The paired mitigation is to score spans by normalized
 and partial-overlap matching (character-offset IoU) rather than string equality, and to
 reserve exact match for closed-vocabulary fields.
 
 **4. "@this approach mitigates the problem I mentioned in the miss of Human-goldstandard
 evaluation"** — correct, and now stated in both directions: the automated framework's
 Catches cell names the span-variance problem explicitly, and the human row's mitigation
-points forward to it. The closing paragraph was extended to generalise the observation —
+points forward to it. The closing paragraph was extended to generalize the observation —
 the mitigations are largely *each other*, since the span-variance limit of human
 comparison is answered by automated partial-overlap scoring while the correctness blind
 spot of automated scoring is answered by anchoring back to the gold standard.
@@ -350,10 +350,10 @@ swapped into the Q1.2a table in place of character-offset IoU, for two reasons:
   the choice is visibly deliberate rather than an oversight.
 
 The model-vs-human bullet was also restructured to tier the metric by field type
-(normalised exact match for categorical; terminology/ISO-normalised match for drugs,
+(normalized exact match for categorical; terminology/ISO-normalized match for drugs,
 diagnoses and dates so "Taxol" vs "paclitaxel" is not a miss; character-offset
 partial-match P/R/F1 for spans, as in the i2b2 / n2c2 clinical IE tasks), since "exact and
-normalised match for the extracted fields" was too coarse to survive the question.
+normalized match for the extracted fields" was too coarse to survive the question.
 
 **2. "specificity (why?)"** (Q1.2c) — a fair challenge; specificity is genuinely weak
 under 5% prevalence and the original list asserted it without justification. Rather than
@@ -362,7 +362,7 @@ performance as a sensitivity/specificity pair, so omitting it hurts communicatio
 people who act on the output — but specificity is 1 − FPR and therefore carries exactly
 the flaw that makes ROC-AUC misleading here, and a model can post 0.95 specificity while
 generating more false positives than true positives. Conclusion made explicit: report
-specificity for communication, lead on PPV for decisions. Also relabelled "precision" as
+specificity for communication, lead on PPV for decisions. Also relabeled "precision" as
 "precision (PPV)" so the clinical and ML vocabulary are tied together.
 
 ### Comment round 6 — clarify the inter-annotator ceiling
@@ -388,7 +388,7 @@ Length: 58 → 101 words on the first attempt, trimmed to ~75. Concrete numbers 
 but buy comprehension; the trim removed hedging, not the example.
 
 **Follow-up:** the rewritten bullet used "headroom", which the candidate flagged as
-unfamiliar. Replaced with "room for improvement". Worth generalising as a rule for the
+unfamiliar. Replaced with "room for improvement". Worth generalizing as a rule for the
 submission: the reviewers are clinical-research readers and may not be native English
 speakers, so idiomatic shorthand should be avoided where a plain phrase does the same
 work. No other instances of the term in `results/`.
@@ -506,7 +506,7 @@ authorship and push attribution are separate identities that must both be checke
 - Created `results/part2_prompt_design.md` with the full 2.1–2.7 scaffold and the same
   `@claude` comment convention as Part 1 (note tightened: the marker must be `@claude`
   and nothing else, after a `@this` variant slipped past the grep sweep in Part 1).
-- 2.1 answered. Candidate drafted seven questions; organised into five groups and
+- 2.1 answered. Candidate drafted seven questions; organized into five groups and
   extended to eighteen.
 
 ### Candidate's seven questions, and how they were handled
@@ -557,7 +557,7 @@ Beyond the traps, four operational questions the prompt cannot be written withou
 - Whether to keep all eighteen or trim; the assignment prefers concise answers, and
   eighteen is defensible only because each maps to a specific downstream prompt decision.
 - **D13 still unresolved and blocking 2.2:** what a summary with no progression
-  information should be labelled. Current proposal is to carry it in a low
+  information should be labeled. Current proposal is to carry it in a low
   `confidence_score` and route it to the abstention band designed in Q1.2c, rather than
   silently defaulting to Non-PD.
 
@@ -594,9 +594,9 @@ raised in E17 — a missed progression is the more expensive error in a screenin
 
 ### Session 5 continued — 2.2 written as a two-stage pipeline
 
-**Architecture set by the candidate:** two LLM calls, splitting *judgement* from
+**Architecture set by the candidate:** two LLM calls, splitting *judgment* from
 *formatting*. Stage 1 reasons in prose and emits no JSON; stage 2 converts stage 1's output
-into schema-valid JSON and performs no clinical judgement. Validation and repair are stages
+into schema-valid JSON and performs no clinical judgment. Validation and repair are stages
 3 and 4, in code.
 
 **Why the split is the right call** (recorded because it is a defensible design choice a
@@ -616,12 +616,12 @@ tier.
 2. *Evidence fidelity* — `supporting_evidence` must be exact quotes from the note, but
    stage 2 deliberately never sees the note, to keep the injection surface to one stage. So
    stage 1 extracts quotes and stage 2 may only copy them; stage 3 verifies each appears
-   verbatim after whitespace/casing/punctuation normalisation, per Q1.2e. An absent quote
+   verbatim after whitespace/casing/punctuation normalization, per Q1.2e. An absent quote
    means fabricated evidence.
 
 **Prompt design decisions:**
 - Instructions in the system message, note in the user message — authority and untrusted
-  data in separate turns. This is the structural half of the 2.7 injection defence.
+  data in separate turns. This is the structural half of the 2.7 injection defense.
 - Note fenced in an XML-style `<clinical_summary>` tag, so the boundary of untrusted
   content is unambiguous and an embedded "ignore previous instructions" sits visibly
   *inside* the data region.
@@ -696,7 +696,7 @@ task.
   while a validator can refuse: `extra="forbid"` (off-contract fields are a
   malformation, not a bonus) and *PD requires at least one evidence quote* (asserting
   progression while quoting nothing is exactly the fabrication Q1.2e targets).
-- **Punctuation is normalised, not stripped**, in the grounding check. Stripping it
+- **Punctuation is normalized, not stripped**, in the grounding check. Stripping it
   would let "no progression" match "progression", inverting a negation — the precise
   error the pipeline exists to prevent. Test covers this.
 - **JSON extraction uses brace matching, not a greedy regex.** `{.*}` would let
@@ -754,7 +754,7 @@ section asks for "a PDF file with the theoretical answers **and prompt design**"
 says "Write a complete System Prompt and User Prompt template". A reviewer reading only
 the PDF now cannot see the prompts. Recommended remedy: an appendix at the end of the PDF
 generated from the four modules at export time, which preserves single-source-of-truth
-while keeping the submitted artefact self-contained.
+while keeping the submitted artifact self-contained.
 
 ### Comment round 10 — 2.3 to 2.7 answered
 
@@ -827,7 +827,7 @@ status. Consequences carried into the code:
   trap list implies: historical timepoints appear in 65.6% of notes and family-history
   subjects in 36.7%, while negated-progression and hypothetical-progression appear in
   **0%**. Steps 2 (SUBJECT) and 4 (TIMEPOINT) of the reading procedure do the real work on
-  this data; the negation and hypothetical defences matter as synthetic regression cases.
+  this data; the negation and hypothetical defenses matter as synthetic regression cases.
 - No note exceeds 2,000 words, so no chunking is needed. Single specialty, so no
   stratification by specialty is possible.
 
@@ -898,7 +898,7 @@ reason to prefer it: clinical text turns on rare tokens (drug names, ICD codes, 
 Each domain model assigned the role it is actually built for, which is where these answers
 usually go wrong:
 - **SapBERT is an entity linker, not a passage retriever** — trained on short UMLS synonym
-  pairs. Used for concept normalisation, whose CUIs then become *metadata* feeding E.2's
+  pairs. Used for concept normalization, whose CUIs then become *metadata* feeding E.2's
   filters. Embedding whole notes with it would be a category error.
 - **MedCPT is trained on PubMed abstracts, not clinical notes.** Real distribution gap
   between academic prose and telegraphic EHR text. Assigned to a literature corpus only;
@@ -906,9 +906,9 @@ usually go wrong:
 - **BM25 as a mandatory baseline.** Often embarrassingly competitive on clinical corpora,
   since much clinical retrieval is known-item search for a named drug or code.
 
-Empirical protocol: three labelled-set sources ordered by cost (mined `IMPRESSION`→body
+Empirical protocol: three labeled-set sources ordered by cost (mined `IMPRESSION`→body
 pairs, known-item search, pooled clinician relevance judgments), reusing Q1.2b's annotation
-discipline including the human agreement ceiling. **Recall@k prioritised over nDCG**, since
+discipline including the human agreement ceiling. **Recall@k prioritized over nDCG**, since
 retrieval failure is unrecoverable downstream while imperfect ranking within a good
 candidate set is survivable. Stratified by language so an aggregate cannot hide Hebrew
 failing. Operational envelope included because **re-embedding millions of notes is a
@@ -918,7 +918,7 @@ multi-day GPU job, making model choice close to irreversible.**
 **pgvector on PostgreSQL**, and deliberately not on vector-benchmark grounds — it loses
 those. The argument is **metadata authority**: the clinical metadata to filter on is already
 in PostgreSQL (it is literally the Part 3.1 schema), so filtering is a join against
-authoritative tables rather than a lookup in a denormalised copy that drifts. Drifted
+authoritative tables rather than a lookup in a denormalized copy that drifts. Drifted
 metadata in a vector store is a PHI-leak vector — a patient deleted from the EHR whose
 vectors still answer queries. Plus transactions, **row-level security** (very hard to
 retrofit onto a bolt-on vector DB, and potentially decisive in a hospital), and reuse of an
@@ -973,7 +973,7 @@ All four parts answered. 92 tests passing. Every relative link across `results/`
 - PDF export, including the appendix decision from session 7 (prompts now live only in
   `src/`, so a reviewer reading the PDF alone would not see them).
 - Verification still outstanding from session 2: `Qwen3.5-27B` and
-  `Nemotron 3 Super 120B-A12B` model names, parameter counts, architectures and licences.
+  `Nemotron 3 Super 120B-A12B` model names, parameter counts, architectures and licenses.
 
 ---
 
@@ -998,7 +998,7 @@ Seventeen `@claude` comments on `part2_prompt_design.md`. Five changed code, not
    note cannot terminate its container and continue as instructions. **The cost is real** —
    the model now sees escape sequences and could quote the escaped form, breaking verbatim
    grounding. Two mitigations, both tested: the stage-1 prompt states that quotes must
-   reproduce clinical text and not its JSON escaping, and `normalise_for_matching` collapses
+   reproduce clinical text and not its JSON escaping, and `normalize_for_matching` collapses
    literal escape sequences before comparison.
 3. **Repair scope narrowed** — prompted by the candidate's question "but stage 4 repairs such
    cases, no?" about verdict drift. The answer is no, and the code did not previously enforce
@@ -1037,7 +1037,7 @@ changing the confidence scale changes the mock's draws.
   nine layers apply to **stage 2 only**. Stage 1 is *supposed* to emit free prose and is
   deliberately unconstrained, so "layer 1 makes malformed output impossible" was wrong as
   written. Now stated up front, with stage 1's much weaker four-line contract noted separately.
-- **GBNF removed** in favour of JSON-Schema-constrained decoding, per the request.
+- **GBNF removed** in favor of JSON-Schema-constrained decoding, per the request.
 - **2.6 shortened** from ~560 to ~420 words: the nine-row table became three grouped bullets
   (model / runtime / experiment), keeping the batching point that mattered.
 - **What temperature samples stated explicitly**: at each step the model produces a
@@ -1050,7 +1050,7 @@ changing the confidence scale changes the mock's draws.
 ### Open
 - Candidate review of Parts 3 and 4 still pending.
 - PDF export and the appendix decision.
-- `Qwen3.5-27B` / `Nemotron 3 Super 120B-A12B` specs and licences still unverified.
+- `Qwen3.5-27B` / `Nemotron 3 Super 120B-A12B` specs and licenses still unverified.
 
 ### Comment round 11 — verdict-drift escalation, and a de-duplication pass
 
@@ -1081,9 +1081,9 @@ Removed:
 - **2.2's per-stage prose restated the pipeline table sitting directly above it** (inputs,
   outputs, tiers, the six audit checks, the validator error text). Rewritten as "what each
   prompt carries, *beyond* the table" — only the content the table cannot express.
-- 2.7's first two defences restated a design note verbatim; collapsed to a pointer and the
+- 2.7's first two defenses restated a design note verbatim; collapsed to a pointer and the
   layers renumbered 1–6.
-- "A defence that is not tested is an assumption" appeared in both 2.5 and 2.7; kept once.
+- "A defense that is not tested is an assumption" appeared in both 2.5 and 2.7; kept once.
 - The audit's "different model family" requirement duplicated the table's own tier cell.
 
 Net 4,720 → 4,449 words, and that *includes* the escalation clause added for comment 1, so
@@ -1143,12 +1143,12 @@ think this paragraph is too hard."* Correct, and it was a self-contradiction rat
 harsh wording — the prompt banned outside medical knowledge and then supplied RECIST
 definitions two paragraphs later, which is outside medical knowledge.
 
-The task cannot be done without it. Recognising that PR is a response category, that `s/p`
+The task cannot be done without it. Recognizing that PR is a response category, that `s/p`
 means status post, or that "new hepatic lesions" describes growth even where the words
 "progressive disease" never appear, is all knowledge the note does not contain.
 
 **The distinction the prompt should have drawn is interpretation vs. supplying facts:**
-- *Permitted* — reading the text: expanding abbreviations, recognising response categories,
+- *Permitted* — reading the text: expanding abbreviations, recognizing response categories,
   understanding that a described finding constitutes progression.
 - *Forbidden* — asserting facts about this patient that the note does not state, and in
   particular **reasoning from what is typical**: "patients on second-line usually progressed on
@@ -1170,7 +1170,7 @@ fails if it cannot be quoted. The prompt does not have to carry that burden alon
 what allows it to be permissive about interpretation.
 
 New `tests/test_prompt_content.py` (6 tests) pins these decisions, since an edit reversing them
-would break nothing else in the suite. Assertions are whitespace-normalised so they survive
+would break nothing else in the suite. Assertions are whitespace-normalized so they survive
 re-wrapping the prompt text. 100 → 106 tests.
 
 ### Comment round 14 — dependency and import hygiene
@@ -1207,7 +1207,7 @@ Clearing the config also surfaced `UP042`: `Classification` and `FailureType` bo
 `class X(str, Enum)` mixin rather than `enum.StrEnum`. Switched. Beyond modernisation it
 removes a genuine footgun — for a str-mixin enum `str(member)` returns `"Classification.PD"`,
 whereas `StrEnum` returns `"PD"`. The code already used `.value` explicitly everywhere, so
-behaviour is unchanged; verified by the suite and by re-running both entry points, and the
+behavior is unchanged; verified by the suite and by re-running both entry points, and the
 metrics are identical.
 
 **A scripted audit** now backs the claim rather than a spot check: parse every file under
@@ -1269,7 +1269,7 @@ mechanics — a comment restating the line below it is noise. The ones worth hav
 - why `classify_notes` is sequential (concurrency belongs at the serving layer, and adding it
   here would complicate per-record failure accounting for no gain locally).
 
-**Walkthrough rebuilt from one scenario into four**, which is a better artefact than the
+**Walkthrough rebuilt from one scenario into four**, which is a better artifact than the
 original single happy path:
 1. **Clean run** — stage 2 wraps its JSON in a fence with prose either side; absorbed with zero
    retries, showing that messy formatting is not a failure.
@@ -1303,7 +1303,7 @@ contract being met *and* how that stage fails. 14 scenarios:
 | --- | --- |
 | 1 — Reason | 1a contract met · 1b off-contract, **and stage 2 is never called**, shown by call count |
 | 2 — Structure | 2a conversational noise absorbed without repair · 2b injection confinement, shown by inspecting both prompts |
-| 3 — Validate | 3a verdict drift · 3b fabricated evidence · 3c abstention recognised |
+| 3 — Validate | 3a verdict drift · 3b fabricated evidence · 3c abstention recognized |
 | 4 — Repair | 4a recovered on retry 1 · 4b retries bounded and exhausted · 4c drift **not** repaired |
 | 5 — Audit | 5a passes · 5b rejects but keeps the output for triage · 5c malformed audit ≠ approval · 5d independence, shown by inspecting the auditor's prompt |
 
@@ -1405,13 +1405,13 @@ the prose they were duplicating.
 
 **`results/part3_sql_and_pipeline.md`, 920 → 433 words in that section.** The five per-query
 prose blocks were folded into the existing table as a fourth column, "The decision that changes
-the answer" — one line each. That is the right division of labour: the answers document is the
+the answer" — one line each. That is the right division of labor: the answers document is the
 index, each file's header is the detail. Also trimmed the ER-diagram note, which restated query
 3's join rationale that the query file already owns.
 
 One thing is *deliberately* still repeated: query 3's over-report. It changes how the output
 should be read, so a reviewer looking only at the answers document needs it. Cut from five lines
-to two and labelled as a deliberate repeat rather than left looking accidental.
+to two and labeled as a deliberate repeat rather than left looking accidental.
 
 **SQL headers, 160 → 80 comment lines.** Per file: 01 14→7, **02 84→32**, 03 20→14, 04 14→9,
 05 28→18.
@@ -1482,7 +1482,7 @@ requires iterating the `transcription` column, nothing more.
 
 **One thing had to move first.** `src/evaluate.py` imported `load()` from `src/eda.py`, so
 deleting the module outright would have broken the Task 3.2 pipeline. `load()` — the CSV read
-plus the column-name normalisation and whitespace stripping the export needs — now lives in
+plus the column-name normalization and whitespace stripping the export needs — now lives in
 `evaluate.py`, its only consumer. That removes a module rather than adding one.
 
 **Citations reattributed rather than deleted.** Part 3 and Part 4 both rested on findings from
@@ -1504,7 +1504,7 @@ a reviewer questions the 69% claim there is now no script to re-run. Both files 
 
 Two `@claude` comments: neither parameter is part of what 3.2 asks for. Correct — the task says
 only "generate a column of random binary labels", with nothing about prevalence or about
-fabricating unlabelled records.
+fabricating unlabeled records.
 
 Both flags removed from `main()`. They survive as keyword arguments on `add_random_labels`,
 because the tests need to construct specific distributions, but they are no longer part of the
@@ -1523,7 +1523,7 @@ label, which is the faithful 3.2 setup.
 faithful and a better demonstration: at 5% over 90 records there were only ~4 positives, leaving
 the confusion matrix too sparse to show anything.
 
-**The new numbers are a materially better artefact**, which is the part worth recording:
+**The new numbers are a materially better artifact**, which is the part worth recording:
 
 | | before | after |
 | --- | --- | --- |
@@ -1557,7 +1557,7 @@ runs, ruff clean, 110 tests pass.
 
 It was a **development narrative**, not an answer. Task 3.2 asks for labels, a mocked LLM,
 robust parsing with failures counted by type, and metrics. It does not ask for a changelog, and
-in a graded artefact "here are two defects I introduced and fixed" is a poor use of 220 words —
+in a graded artifact "here are two defects I introduced and fixed" is a poor use of 220 words —
 especially in a document that has been trimmed twice already for exactly this reason.
 
 The content was also redundant across three places. The *fixes* and their reasoning live in the
@@ -1579,7 +1579,7 @@ abstention sign error described above was originally caught"), replaced with the
 version: an AUC far from 0.5 here would be a signal to go looking for a bug. Same lesson,
 no dependency on a story.
 
-Generalised the README's AI-assistance disclosure from "two bugs" to "the defects", since the
+Generalized the README's AI-assistance disclosure from "two bugs" to "the defects", since the
 count had already gone stale — the `ModelPrivateAttr` and object-dtype boolean errors came later.
 
 Part 3 now 2,457 words. 110 tests pass, ruff clean, all links resolve.
@@ -1587,3 +1587,38 @@ Part 3 now 2,457 words. 110 tests pass, ruff clean, all links resolve.
 **Pattern worth noting across rounds 20, 22 and 24:** three separate cuts, all of the same
 thing — narration about the work rather than the work. Writing "here is what I learned building
 this" is a habit to resist in a deliverable; the log is where it belongs.
+
+### Round 25 — US English throughout
+
+Instruction: use US spelling, not UK. Applied across every `.py`, `.md`, `.sql` and `.toml`
+file in the repository — 20 files, 115 occurrences — excluding `hw_docs/`, which holds the
+assignment PDF and the source CSV and must not be touched.
+
+Beyond the obvious `artefact` → `artifact`, the substantive families were `licence` → `license`
+(19, mostly the Part 1 model comparison), the `normalise` family → `normalize` (27 across code
+and prose), `judgement` → `judgment` (11, including prompt text), `labelled` → `labeled` (10),
+and `defence` → `defense` (12, mostly Part 2.7's injection layers).
+
+**Six code identifiers were renamed, not just prose.** A word-boundary regex does not fire
+inside `snake_case`, since `_` is a word character, so these needed explicit substring
+replacement:
+- `normalise_for_matching` → `normalize_for_matching` (8 references across 4 files, including
+  a docstring cross-reference in `prompts/_util.py`)
+- five test names carrying `normalisation`, `recognised` or `judgement`
+
+**Prompt text changed too**, deliberately: the stage-1 prompt now says "clinical text to be
+analyzed" and stage 2 "NO clinical judgment". These are strings a model reads, and
+`tests/test_prompt_content.py` asserts on them, so prompt and assertion had to move together —
+they did, and the suite confirms it.
+
+Checked for the traps rather than trusting the sweep:
+- `analyses` as a plural *noun* is correct US English and must not become `analyzes`. No
+  instances existed, so the rule was safe here.
+- `medical_specialty` — the CSV column — was already US and is untouched. Only `speciality` →
+  `specialty` was in scope.
+- Prefixed forms were missed by the first pass and needed a second: `unlabelled`,
+  `denormalisation`, `denormalised`, `recognising`, `relabelled`.
+- Grepped for double-replacement artifacts (`organizeed`, `izeing`); none.
+
+Verified: a final regex sweep over all 15 UK stem families returns nothing, ruff clean, 110
+tests pass, both entry points run.

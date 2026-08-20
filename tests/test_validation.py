@@ -16,7 +16,7 @@ from src.validation import (
     FailureType,
     extract_json_block,
     find_ungrounded_quotes,
-    normalise_for_matching,
+    normalize_for_matching,
     parse_stage1_verdict,
     verify_output,
 )
@@ -74,18 +74,18 @@ def test_no_json_returns_none(raw):
 
 
 # --------------------------------------------------------------------------- #
-# Normalisation and grounding
+# Normalization and grounding
 # --------------------------------------------------------------------------- #
 
 
-def test_normalisation_folds_whitespace_case_and_smart_punctuation():
-    assert normalise_for_matching("The  patient’s\nCT") == "the patient's ct"
+def test_normalization_folds_whitespace_case_and_smart_punctuation():
+    assert normalize_for_matching("The  patient’s\nCT") == "the patient's ct"
 
 
-def test_normalisation_does_not_strip_punctuation():
+def test_normalization_does_not_strip_punctuation():
     """Stripping punctuation would let a negation match its own opposite."""
-    assert "no" in normalise_for_matching("no evidence of progression")
-    assert normalise_for_matching("no progression") != normalise_for_matching("progression")
+    assert "no" in normalize_for_matching("no evidence of progression")
+    assert normalize_for_matching("no progression") != normalize_for_matching("progression")
 
 
 def test_quote_grounded_despite_rewrapping():
@@ -182,7 +182,7 @@ def test_ungrounded_evidence_is_caught():
 # --------------------------------------------------------------------------- #
 
 
-def test_abstention_signature_is_recognised():
+def test_abstention_signature_is_recognized():
     record = ClinicalClassification(
         classification=Classification.NON_PD,
         confidence_score=ABSTENTION_CONFIDENCE_CEILING,

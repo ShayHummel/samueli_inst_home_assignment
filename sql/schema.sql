@@ -25,7 +25,7 @@ CREATE TABLE diagnoses (
     description  text
 );
 
--- Note the denormalisation: medications carries BOTH patient_id and visit_id.
+-- Note the denormalization: medications carries BOTH patient_id and visit_id.
 -- visit_id is nullable so that a prescription not tied to an encounter (e.g. a
 -- phone renewal) can still be recorded against the patient.
 CREATE TABLE medications (

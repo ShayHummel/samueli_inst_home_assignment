@@ -38,7 +38,7 @@ architecture — so I would name it up front rather than pick a model and discov
 | **multilingual-E5** (large / instruct) | General, multilingual | Strong, well-established multilingual baseline; cheap to serve | Requires `query:` / `passage:` prefixes — omit them and quality degrades sharply, a real operational footgun; 512-token limit on base variants forces chunking | Baseline to beat |
 | **GTE-multilingual** | General, multilingual | 8,192 context, notably smaller and faster than BGE-M3 | Fewer retrieval signals; less battle-tested clinically | Throughput candidate |
 | **MedCPT** | Domain, English | Trained on ~255M PubMed query–article click pairs, so it is a genuine *retriever* rather than a repurposed encoder; strong biomedical relevance | Trained on **PubMed abstracts, not clinical notes** — academic prose differs sharply from telegraphic EHR text full of abbreviations; English only | Literature / guideline corpus only |
-| **SapBERT** | Domain, English | Self-aligned over UMLS synonyms; excellent at mapping surface forms to concepts (`MI` ↔ `myocardial infarction`) | An **entity linker, not a passage retriever** — tuned for short strings, not documents; English only | Concept normalisation layer |
+| **SapBERT** | Domain, English | Self-aligned over UMLS synonyms; excellent at mapping surface forms to concepts (`MI` ↔ `myocardial infarction`) | An **entity linker, not a passage retriever** — tuned for short strings, not documents; English only | Concept normalization layer |
 | **BM25** | Lexical | No training, no GPU, no drift; unbeatable on exact drug names, ICD codes, identifiers | No semantics; misses paraphrase | **Mandatory baseline** |
 
 ### The architecture this implies
@@ -52,7 +52,7 @@ over a dense-only model**: clinical text turns on rare tokens (drug names, ICD c
 avoids running and tuning a second retrieval system.
 
 **2. SapBERT used for what it is actually good at.** Not as the passage retriever, but as a
-concept-normalisation layer: canonicalise entity mentions to UMLS CUIs so `MI`,
+concept-normalization layer: canonicalize entity mentions to UMLS CUIs so `MI`,
 `myocardial infarction` and the Hebrew equivalent collapse to one concept. Those CUIs then
 become *metadata* (see E.2) and feed the sparse channel. Using SapBERT to embed whole notes
 would be a category error — it is trained on short synonym pairs.
@@ -79,7 +79,7 @@ channel, which is morphology-agnostic where dense retrieval fails.
 Public leaderboards are evidence for *shortlisting* and nothing more; MTEB has no Hebrew
 clinical split, and our corpus is not its corpus.
 
-**Build a labelled retrieval set from our own notes.** Three sources, cheapest first:
+**Build a labeled retrieval set from our own notes.** Three sources, cheapest first:
 - **Mined weak pairs.** Use a note's own `IMPRESSION` section as the query and the note body as
   the positive. Free, large, and noisy — good for a first ranking, not for a final decision.
   Coverage is partial: only 40 of the 90 notes carry that header at all.
@@ -109,7 +109,7 @@ hide Hebrew failing — which is the specific risk this corpus carries.
 embedding throughput (notes/sec/GPU), full-corpus index build time, query latency p50/p95,
 memory per million vectors, and **the cost of re-embedding everything when the model changes**.
 At millions of notes that last one is a multi-day GPU job, so model choice is close to
-irreversible and deserves the up-front rigour.
+irreversible and deserves the up-front rigor.
 
 **Compare properly.** Paired comparisons on identical queries, bootstrap confidence intervals,
 and no declaring a winner on a one-point nDCG gap — the same small-sample caution that Part 3.2
@@ -138,7 +138,7 @@ The clinical metadata this system must filter on (`patient_id`, `visit_date`, `d
 already in PostgreSQL: that is literally the Part 3.1 schema. Putting the vectors beside it
 means:
 
-- **Filtering is a join against authoritative tables**, not a lookup in a denormalised copy of
+- **Filtering is a join against authoritative tables**, not a lookup in a denormalized copy of
   metadata inside a separate index. A copy is a thing that drifts, and drifted metadata in a
   vector store is a PHI-leak vector — a patient deleted from the EHR whose vectors still answer
   queries.
@@ -220,7 +220,7 @@ HNSW indexes over the common filter values.
 **3. Partition on the highest-cardinality filter.** Partitioning by department or by time range
 turns a filter into partition pruning, so the scan never touches irrelevant data.
 
-**Store the E.1 concept CUIs as metadata too.** Normalised concepts turn a fuzzy semantic
+**Store the E.1 concept CUIs as metadata too.** Normalized concepts turn a fuzzy semantic
 question into an exact filter — "notes mentioning C0027051 (myocardial infarction)" — which is
 both faster and more auditable than hoping cosine similarity captures it.
 
@@ -284,7 +284,7 @@ when it gets blurred.
 **Temporal contamination within one patient.** Retrieval is semantic, not chronological. Ask
 about current status and retrieval happily surfaces the *same patient's* 2023 note saying
 "progressive disease". This re-introduces the temporality trap (D9) through the retrieval layer
-*after* the prompt had solved it — a defence at one layer silently undone by a new layer.
+*after* the prompt had solved it — a defense at one layer silently undone by a new layer.
 Mitigation: date-filter to the clinically relevant window and stamp every retrieved chunk with
 its date.
 

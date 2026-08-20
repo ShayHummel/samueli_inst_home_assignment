@@ -34,9 +34,9 @@ below encode that as two competing hypotheses for the escalation tier:
 
 | Model | Strengths | Weaknesses | Best-suited clinical use case |
 | --- | --- | --- | --- |
-| **Qwen3.5-27B**<br>*extraction tier*<br>Licence: `Apache 2.0`<br>Precision: BF16 ≈54 GB → FP8 ≈27 GB | • Broad multilingual coverage — the reason to evaluate it on Hebrew/English notes<br>• Manageable 27B footprint<br>• Long context<br>• Serves structured extraction efficiently (vLLM / TGI) | • Dense: less compute-efficient per parameter than a similarly sized MoE<br>• Not the accuracy ceiling — hard negation and temporality cases must be escalated, not solved here | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
-| **gpt-oss-120b**<br>*reasoning tier*<br>Licence: `Apache 2.0`<br>Precision: ships natively MXFP4, ≈80 GB → 1 GPU | • Strong reasoning and instruction-following<br>• Configurable reasoning effort<br>• Native structured-output support<br>• 117B total but only ~5.1B active — a genuinely large reasoning model that is practical on-prem | • Slower and heavier than the extraction tier — reserve for escalated cases only<br>• Text-only | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
-| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>Licence: `NVIDIA Open Model Licence`<br>Precision: BF16 ≈240 GB → 4×80 GB; FP8 ≈120 GB → 2×80 GB | • Strong reasoning<br>• Efficient MoE — ~12B active of 120B<br>• Switchable reasoning / non-reasoning modes<br>• Very long context<br>• NVIDIA-optimised serving stack — matters if the hospital is already NVIDIA-heavy | • Needs 2–4× the GPUs of gpt-oss at comparable precision<br>• Hebrew is not an officially supported language<br>• General / agentic rather than clinically specialised | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
+| **Qwen3.5-27B**<br>*extraction tier*<br>License: `Apache 2.0`<br>Precision: BF16 ≈54 GB → FP8 ≈27 GB | • Broad multilingual coverage — the reason to evaluate it on Hebrew/English notes<br>• Manageable 27B footprint<br>• Long context<br>• Serves structured extraction efficiently (vLLM / TGI) | • Dense: less compute-efficient per parameter than a similarly sized MoE<br>• Not the accuracy ceiling — hard negation and temporality cases must be escalated, not solved here | High-volume field extraction: diagnoses, treatments, dates, response status and other structured fields. |
+| **gpt-oss-120b**<br>*reasoning tier*<br>License: `Apache 2.0`<br>Precision: ships natively MXFP4, ≈80 GB → 1 GPU | • Strong reasoning and instruction-following<br>• Configurable reasoning effort<br>• Native structured-output support<br>• 117B total but only ~5.1B active — a genuinely large reasoning model that is practical on-prem | • Slower and heavier than the extraction tier — reserve for escalated cases only<br>• Text-only | Ambiguous clinical reasoning escalated from the extraction tier: temporality, negation, conflicting evidence, hard PD / Non-PD calls. |
+| **Nemotron 3 Super 120B-A12B**<br>*reasoning tier alternative*<br>License: `NVIDIA Open Model License`<br>Precision: BF16 ≈240 GB → 4×80 GB; FP8 ≈120 GB → 2×80 GB | • Strong reasoning<br>• Efficient MoE — ~12B active of 120B<br>• Switchable reasoning / non-reasoning modes<br>• Very long context<br>• NVIDIA-optimised serving stack — matters if the hospital is already NVIDIA-heavy | • Needs 2–4× the GPUs of gpt-oss at comparable precision<br>• Hebrew is not an officially supported language<br>• General / agentic rather than clinically specialised | Long-context and RAG-heavy cases: reasoning across lengthy records or retrieved evidence. The throughput-oriented alternative to gpt-oss. |
 
 **A caveat that applies to all three, not to any one of them.** Declared language support
 differs between them — hence Nemotron's row — but *clinical* Hebrew performance is unestablished
@@ -44,12 +44,12 @@ for all three. That is a property of the current open-weight landscape rather th
 distinguishing weakness of any one model, so it is stated once here rather than repeated per
 row, and the mitigation is in (b).
 
-*Licence constraints:* on-prem terms are
+*License constraints:* on-prem terms are
 load-bearing, and "open-weight" does not mean unrestricted. Llama is the standard example — its
-community licence carries acceptable-use terms and a monthly-active-user threshold above which
+community license carries acceptable-use terms and a monthly-active-user threshold above which
 separate permission from Meta is required, so it needs legal sign-off in a way Apache 2.0 does
-not. A restrictive or non-commercial licence can therefore disqualify a model regardless of how
-it benchmarks, which is why the licence sits in the table beside the technical properties.
+not. A restrictive or non-commercial license can therefore disqualify a model regardless of how
+it benchmarks, which is why the license sits in the table beside the technical properties.
 
 ### b) Hebrew clinical text: what concern do most open models raise, and how would you handle it?
 
@@ -80,9 +80,9 @@ hospital records reported strong clinical temporal extraction, including on an o
 
 | Framework | Method | Catches | Misses | Mitigation |
 | --- | --- | --- | --- | --- |
-| **Human gold-standard evaluation** | Compare model outputs — **both the binary label and the extracted fields** — against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | • Cost-bound sample size, so rare cases are underrepresented<br>• Free-text extractions vary in wording and span boundaries, so they do not compare to a human annotation by exact match | • Stratify and oversample the rare and hard strata rather than sampling uniformly; report confidence intervals so a small *n* stays visible<br>• Score spans by normalised and partial-overlap matching (character-offset IoU — positional, not lexical; see (b) on ROUGE), reserving exact match for closed-vocabulary fields — supplied by the automated framework below |
-| **Consistency & robustness testing** | Repeated runs, controlled input perturbations, and disagreement across independent model families. | Instability, prompt sensitivity, brittle behaviour, and which cases are genuinely difficult. | Agreement does not imply correctness — models may share systematic errors. | Anchor a subset to the human gold standard so agreement is calibrated against truth, and draw the ensemble from genuinely independent model families rather than checkpoints of one lineage. |
-| **Automated reference-based validation** | Exact and normalised matching for structured fields, schema and range checks, evidence verification, and semantic similarity where appropriate. | Scalable detection of incorrect, malformed or unsupported outputs — including the span-variance problem above, via normalised and partial-overlap scoring. | Rules cannot capture all clinical context; semantic similarity does not guarantee clinical correctness. | Treat automated scores as a screen, not a verdict: route low-scoring and disagreeing cases to clinician review, and periodically re-validate the automated metrics against the gold standard. |
+| **Human gold-standard evaluation** | Compare model outputs — **both the binary label and the extracted fields** — against an independently clinician-annotated, adjudicated test set. | Clinical errors, negation and temporality mistakes, clinically meaningful misinterpretations. | • Cost-bound sample size, so rare cases are underrepresented<br>• Free-text extractions vary in wording and span boundaries, so they do not compare to a human annotation by exact match | • Stratify and oversample the rare and hard strata rather than sampling uniformly; report confidence intervals so a small *n* stays visible<br>• Score spans by normalized and partial-overlap matching (character-offset IoU — positional, not lexical; see (b) on ROUGE), reserving exact match for closed-vocabulary fields — supplied by the automated framework below |
+| **Consistency & robustness testing** | Repeated runs, controlled input perturbations, and disagreement across independent model families. | Instability, prompt sensitivity, brittle behavior, and which cases are genuinely difficult. | Agreement does not imply correctness — models may share systematic errors. | Anchor a subset to the human gold standard so agreement is calibrated against truth, and draw the ensemble from genuinely independent model families rather than checkpoints of one lineage. |
+| **Automated reference-based validation** | Exact and normalized matching for structured fields, schema and range checks, evidence verification, and semantic similarity where appropriate. | Scalable detection of incorrect, malformed or unsupported outputs — including the span-variance problem above, via normalized and partial-overlap scoring. | Rules cannot capture all clinical context; semantic similarity does not guarantee clinical correctness. | Treat automated scores as a screen, not a verdict: route low-scoring and disagreeing cases to clinician review, and periodically re-validate the automated metrics against the gold standard. |
 
 These are complementary rather than competing: human evaluation establishes correctness,
 robustness testing identifies instability, and automated validation makes evaluation possible
@@ -107,7 +107,7 @@ sufficient alone.
   whose decision defines the gold label.
 - **Model-vs-human metrics:** Precision, recall, F1 and the confusion matrix for the binary
   label. For the extracted fields the metric has to match the field type: exact match after
-  normalisation for categorical fields; terminology- or ISO-normalised match for drugs,
+  normalization for categorical fields; terminology- or ISO-normalized match for drugs,
   diagnoses and dates, so that "Taxol" against "paclitaxel" is not scored as a miss; and
   character-offset partial-match precision / recall / F1 for evidence spans, as used in the
   i2b2 / n2c2 clinical IE tasks. All measured against the adjudicated gold standard.
@@ -135,9 +135,9 @@ ROC-AUC and PR-AUC.
 ROC-AUC becomes misleading under severe class imbalance, because the large number of
 negatives means a low false-positive *rate* can still correspond to a clinically significant
 absolute number of false positives. At approximately 5% positive prevalence, accuracy is
-likewise uninformative: labelling every case negative already scores 95%.
+likewise uninformative: labeling every case negative already scores 95%.
 
-I would therefore emphasise precision, recall, F1 and PR-AUC, with particular attention to
+I would therefore emphasize precision, recall, F1 and PR-AUC, with particular attention to
 recall wherever false negatives carry high clinical cost.
 
 **Emit a calibrated probability, not only the binary label.** A hard label yields a single point
@@ -179,7 +179,7 @@ periods with different prevalence. I would always report prevalence next to it.
   Concretely, I would measure judge-vs-clinician agreement with Cohen's κ and compare it
   against the **human-human κ on the same items**: a judge that agrees with clinicians about as
   well as clinicians agree with each other is usable, while one materially below that ceiling
-  is not — regardless of its size. I would also analyse the disagreements explicitly rather
+  is not — regardless of its size. I would also analyze the disagreements explicitly rather
   than reporting only the aggregate, and would trust the judge only over the case distribution
   on which it was validated. A larger or stronger model should not automatically be considered
   a reliable judge.
@@ -195,11 +195,11 @@ Validation then runs in two stages. The two stages fail in *different* ways, so 
 their counts separate rather than collapsing them into a single number:
 
 1. **Span presence** — programmatically verify the evidence span actually appears in the source
-   note, after normalising whitespace, casing and punctuation. Without that normalisation,
+   note, after normalizing whitespace, casing and punctuation. Without that normalization,
    exact matching produces false failures on quotes that were merely re-wrapped or re-cased. A
    span that is genuinely absent means the model **fabricated its own evidence**.
 2. **Span support** — verify the span actually entails the extracted value, using deterministic
-   normalisation and rules where possible and a separately validated entailment or judge model
+   normalization and rules where possible and a separately validated entailment or judge model
    for the harder cases. A span that is present but does not entail the value means the
    evidence is real but the **inference drawn from it is unsupported**.
 
@@ -222,7 +222,7 @@ weighted towards unsupported and clinically high-risk extractions.
 | 1 | Small or unrepresentative test set, particularly too few positive cases. | Inspect positive-class sample size and compute bootstrap confidence intervals. |
 | 2 | Train–test leakage: notes from the same patients or templates on both sides of the split. | Re-evaluate under patient-level and temporal splits. |
 | 3 | Production distribution shift. | Compare test vs. production distributions and evaluate a recent production sample. |
-| 4 | F1 does not capture clinical severity — errors are not equally costly. | Clinician error analysis categorised by error type and clinical consequence, especially false negatives. |
+| 4 | F1 does not capture clinical severity — errors are not equally costly. | Clinician error analysis categorized by error type and clinical consequence, especially false negatives. |
 | 5 | Test-set label noise. F1 measures agreement with the gold standard, so if the gold labels are themselves wrong, the metric is confidently measuring the wrong target. | Re-adjudicate a random sample of test labels with a senior clinician and report inter-annotator agreement on the test set itself. |
 
 A high aggregate F1 is therefore insufficient evidence of clinical reliability. Validation

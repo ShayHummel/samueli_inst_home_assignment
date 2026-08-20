@@ -1,6 +1,6 @@
 """Tests for the Task 3.1 SQL, run against a real PostgreSQL cluster.
 
-Each test seeds the minimum rows needed to make one behaviour observable. The
+Each test seeds the minimum rows needed to make one behavior observable. The
 interesting cases are the boundaries — visits on 31 December, patients with no
 visits, visits with no diagnoses, ties on a sort key — because those are where a
 plausible-looking query is wrong.

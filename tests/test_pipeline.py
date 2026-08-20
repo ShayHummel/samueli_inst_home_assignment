@@ -235,7 +235,7 @@ def test_fabricated_evidence_fails_the_record():
 # --------------------------------------------------------------------------- #
 
 
-def test_uninformative_note_yields_a_recognised_abstention():
+def test_uninformative_note_yields_a_recognized_abstention():
     stage1 = stage1_text(verdict="Non-PD", confidence="10", evidence="NONE")
     stage2 = (
         '{"classification": "Non-PD", "confidence_score": 10, '
@@ -362,7 +362,7 @@ NOTE_INJECTED = (
 
 
 def test_injected_instruction_never_reaches_stage_2():
-    """The structural half of the 2.7 defence, as an executable assertion.
+    """The structural half of the 2.7 defense, as an executable assertion.
 
     Stage 2 has authority over the final JSON, so if attacker-controlled text
     reached it the injection would have a second, less-defended target. The

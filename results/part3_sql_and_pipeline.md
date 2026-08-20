@@ -68,7 +68,7 @@ DDL: [`sql/schema.sql`](../sql/schema.sql).
 ### Three things the diagram makes visible
 
 **1. `medications` has two parents.** It carries both `patient_id` and `visit_id`, so it
-hangs off `patients` directly *and* off `visits`. That is a deliberate denormalisation —
+hangs off `patients` directly *and* off `visits`. That is a deliberate denormalization —
 it lets a prescription exist without an encounter (a phone renewal, a transferred
 medication list) by leaving `visit_id` NULL. It also creates a consistency hazard the
 schema cannot enforce: nothing stops `medications.patient_id` disagreeing with
@@ -111,7 +111,7 @@ timestamps, and `Neurosurgery` not matching `Neurology`.
 
 Four pin a decision rather than check correctness, so it cannot drift silently:
 integer division must not truncate; the levodopa over-report above is asserted as current
-behaviour; and two guard query 2 — that its `DISTINCT ON` and `LATERAL` forms agree, and that
+behavior; and two guard query 2 — that its `DISTINCT ON` and `LATERAL` forms agree, and that
 moving `LATERAL`'s correlation into the `ON` clause silently loses rows.
 
 **How they run.** [`tests/conftest.py`](../tests/conftest.py) starts a throwaway cluster with
@@ -142,7 +142,7 @@ mock draws it for most notes accordingly.
 
 | Step | Function | Notes |
 | --- | --- | --- |
-| Random ground truth | `add_random_labels` | Seeded, fair coin, every record labelled — the literal reading of "a column of random binary labels". Prevalence and missing-label injection are keyword arguments for the tests, not CLI options, since neither is part of what 3.2 asks for. |
+| Random ground truth | `add_random_labels` | Seeded, fair coin, every record labeled — the literal reading of "a column of random binary labels". Prevalence and missing-label injection are keyword arguments for the tests, not CLI options, since neither is part of what 3.2 asks for. |
 | Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Parse and validate | `verify_output` (Part 2) | Reuses the Part-2 validator rather than reimplementing it. |
@@ -195,7 +195,7 @@ correct harness must find no discrimination, and the interval says so rather tha
 be assumed. It is the strongest available evidence that the evaluation code measures what it
 claims to, and an AUC far from 0.5 here would be a signal to go looking for a bug.
 
-Precision 0.833 against recall 0.135 is the other thing to notice, and it is an artefact worth
+Precision 0.833 against recall 0.135 is the other thing to notice, and it is an artifact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class
 rarely makes precision look good and recall terrible — the threshold effect discussed in 3.3
 below, visible here by construction rather than by argument.
@@ -213,14 +213,14 @@ collapsing them into one "skipped" number hides which team needs to act.
 
 Why it matters, in order of severity:
 
-**Unlabelled records are not a random sample.** They are frequently unlabelled *because* they
+**Unlabeled records are not a random sample.** They are frequently unlabeled *because* they
 were hard — the annotator could not decide, the record was ambiguous, or a join upstream lost
 it. Dropping them silently therefore removes disproportionately difficult cases and inflates
 every metric. The measured score drifts away from production performance in the optimistic
 direction, which is the worst direction for a clinical system.
 
 **Imputing them is worse than dropping them.** Filling a missing label with the majority class
-manufactures ground truth. At the ~5% clinical prevalence of Q1.2c, defaulting the unlabelled to Non-PD inflates
+manufactures ground truth. At the ~5% clinical prevalence of Q1.2c, defaulting the unlabeled to Non-PD inflates
 accuracy and specificity while corrupting recall, and the corruption is invisible because the
 fabricated labels look like data.
 
@@ -229,7 +229,7 @@ over 60 records are different claims. Without the exclusion counts a reader cann
 they are looking at, cannot compute a confidence interval, and cannot notice that half the
 corpus vanished.
 
-**The missingness rate is itself a monitoring signal.** A rising proportion of unlabelled
+**The missingness rate is itself a monitoring signal.** A rising proportion of unlabeled
 records means annotation is falling behind or a SQL join is silently dropping rows — the
 latter being the failure mode the question's phrasing hints at. That deserves an alert, not a
 `dropna()`.

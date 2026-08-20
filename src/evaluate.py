@@ -69,7 +69,7 @@ DATA_PATH = Path(__file__).resolve().parent.parent / "hw_docs" / "Oncology.csv"
 
 
 def load(path: Path = DATA_PATH) -> pd.DataFrame:
-    """Load the corpus, normalising the unnamed index column."""
+    """Load the corpus, normalizing the unnamed index column."""
     df = pd.read_csv(path)
     df = df.rename(columns={"Unnamed: 0": "source_row_id"})
     # Every text column in this export is padded with leading/trailing spaces.
@@ -98,7 +98,7 @@ def add_random_labels(
     performance.
 
     Both keyword arguments default to the literal reading of the task — "a column of
-    random binary labels", i.e. a fair coin, with every record labelled. Neither is
+    random binary labels", i.e. a fair coin, with every record labeled. Neither is
     exposed on the command line, because neither is part of what 3.2 asks for; they
     exist so the tests can construct the distributions they need:
 
@@ -106,7 +106,7 @@ def add_random_labels(
       5% positive rate over 90 records there are only ~4 positives, which leaves the
       confusion matrix and PD-class metrics too sparse to demonstrate much.
     * ``missing_rate`` — injects ``NaN`` ground truth. Off by default: the *handling*
-      of unlabelled records is a 3.3 answer and is covered by tests, so fabricating
+      of unlabeled records is a 3.3 answer and is covered by tests, so fabricating
       them in the default run would only distort the reported counts.
     """
     rng = np.random.default_rng(seed)

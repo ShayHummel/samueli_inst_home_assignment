@@ -97,7 +97,7 @@ def test_mock_is_deterministic_for_the_same_note():
 def test_note_without_status_vocabulary_produces_an_abstention():
     payload = call_local_llm(NOTE_WITHOUT_STATUS)
     raw = RawClassification.model_validate(payload)
-    assert raw.is_abstention, "abstention must be recognised on the 0-100 scale"
+    assert raw.is_abstention, "abstention must be recognized on the 0-100 scale"
     assert raw.to_output().is_abstention, "and survive the rescale to 0.0-1.0"
     assert raw.supporting_evidence == []
 

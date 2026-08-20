@@ -47,7 +47,7 @@ class FailureType(StrEnum):
 
 
 #: Failure types a repair call can plausibly fix. All of them are *structural*:
-#: the model produced the right judgement in the wrong shape.
+#: the model produced the right judgment in the wrong shape.
 #:
 #: ``VERDICT_DRIFT`` is deliberately **excluded**. Repair is forbidden from changing
 #: clinical content, so it cannot legitimately resolve a disagreement about the
@@ -259,11 +259,11 @@ _PUNCT_MAP = str.maketrans(
 )
 
 
-def normalise_for_matching(text: str) -> str:
-    """Canonicalise text for substring comparison.
+def normalize_for_matching(text: str) -> str:
+    """Canonicalize text for substring comparison.
 
     Collapses whitespace, folds case, and maps Unicode punctuation variants onto
-    ASCII. Punctuation is *normalised, not stripped* — deleting it would let
+    ASCII. Punctuation is *normalized, not stripped* — deleting it would let
     "no progression" match "progression", turning a negation into a false
     positive, which is precisely the error this pipeline exists to avoid.
     """
@@ -283,8 +283,8 @@ def find_ungrounded_quotes(quotes: list[str] | tuple[str, ...], note_text: str) 
     quote actually supports the verdict is the second half, and needs reasoning —
     see ``src.prompts.self_check``.
     """
-    haystack = normalise_for_matching(note_text)
-    return tuple(q for q in quotes if normalise_for_matching(q) not in haystack)
+    haystack = normalize_for_matching(note_text)
+    return tuple(q for q in quotes if normalize_for_matching(q) not in haystack)
 
 
 # --------------------------------------------------------------------------- #

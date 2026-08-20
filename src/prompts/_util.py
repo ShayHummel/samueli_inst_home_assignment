@@ -44,7 +44,7 @@ def as_json_string(text: str) -> str:
     quoting the *escaped* form as evidence and failing the verbatim grounding check.
     Two mitigations: the stage-1 prompt states explicitly that quotes must reproduce
     the clinical text and not its JSON escaping, and
-    ``validation.normalise_for_matching`` collapses literal escape sequences so an
+    ``validation.normalize_for_matching`` collapses literal escape sequences so an
     escaped quote still matches its source.
     """
     import json

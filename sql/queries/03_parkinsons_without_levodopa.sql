@@ -15,7 +15,7 @@
 -- Known limitation: '%levodopa%' matches 'Carbidopa-Levodopa' and
 -- 'levodopa/benserazide' but NOT brand names (Sinemet, Madopar, Rytary), so the query
 -- OVER-reports -- a treated patient can appear untreated. Production would resolve
--- drug_name against RxNorm ingredients or ATC N04BA. A test pins the current behaviour
+-- drug_name against RxNorm ingredients or ATC N04BA. A test pins the current behavior
 -- so a future switch cannot leave this note stale.
 
 SELECT DISTINCT p.patient_id

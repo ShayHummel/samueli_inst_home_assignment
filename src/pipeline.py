@@ -500,7 +500,7 @@ def _stage3_scenarios() -> None:  # pragma: no cover
     # Cross-cutting: the D13 rule, and per the EDA the majority of this corpus.
     _scenario(
         "3c",
-        "abstention recognised: Non-PD, but as 'nothing to assess' rather than a finding",
+        "abstention recognized: Non-PD, but as 'nothing to assess' rather than a finding",
         classify_note(
             QUIET_NOTE,
             reasoning_llm=_ScriptedLlm(_stage1("Non-PD", "10", "NONE")),

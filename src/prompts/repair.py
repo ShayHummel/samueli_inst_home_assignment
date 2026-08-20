@@ -34,7 +34,7 @@ Rules:
   code fences, no leading or trailing text.
 - Fix ONLY the structural problem described in the error. Do not change the clinical
   meaning: keep the same classification, the same evidence quotes character-for-character,
-  and the same reasoning. You are correcting format, not revising a judgement.
+  and the same reasoning. You are correcting format, not revising a judgment.
 - If a required field is missing and its value cannot be recovered from the invalid output,
   use the most conservative valid value: "Non-PD" for classification, 0 for
   confidence_score, an empty array for supporting_evidence, and for clinical_reasoning a

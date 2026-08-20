@@ -58,7 +58,7 @@ def test_stage1_still_requires_a_quotable_basis():
     assert "copied character-for-character" in t
 
 
-def test_stage2_remains_a_formatter_with_no_judgement():
+def test_stage2_remains_a_formatter_with_no_judgment():
     t = flat(stage2_structuring.SYSTEM_TEMPLATE)
-    assert "NO clinical judgement" in t
+    assert "NO clinical judgment" in t
     assert "do not change the verdict" in t.lower()
