@@ -798,3 +798,80 @@ Part 2 written answers: ~3,950 words. 49 tests still green.
 ### Open
 - Appendix decision for the PDF (see risk above).
 - Part 3 not started.
+
+---
+
+## 2026-08-20 — Session 8: Part 3.2 and 3.3
+
+### Done
+- `src/eda.py` + `results/eda_report.md` (one page) — EDA run before implementing, as
+  instructed, and it materially changed the implementation.
+- `src/evaluate.py` — labels, mocked LLM, robust parsing, metrics. CLI at
+  `uv run python -m src.evaluate`.
+- `tests/test_evaluate.py` — 21 tests. Suite total now 92.
+- `results/part3_sql_and_pipeline.md` — 3.2 and 3.3 written up.
+- `README.md` rewritten so the submission is runnable from `uv sync` alone.
+
+### The EDA finding that changed the design
+**68.9% of the corpus (62 of 90 notes) contains no disease-status vocabulary at all.**
+These are consult letters, pre-op notes and procedure reports that never state a response
+status. Consequences carried into the code:
+- The D13 abstention path is the *common* case here, not an edge case, so the mock draws
+  it for the majority of notes. A mock that produced a confident label for every note
+  would have hidden the entire abstention path from the tests.
+- Literal RECIST tokens are nearly absent: **zero** "progressive disease", **zero**
+  standalone "PD", two "progression". So real PD prevalence in this corpus is very low,
+  which retrospectively validates the ~5% figure used in Q1.2c as realistic rather than
+  hypothetical.
+- Trap frequencies **reorder the prompt's priorities** relative to what the assignment's
+  trap list implies: historical timepoints appear in 65.6% of notes and family-history
+  subjects in 36.7%, while negated-progression and hypothetical-progression appear in
+  **0%**. Steps 2 (SUBJECT) and 4 (TIMEPOINT) of the reading procedure do the real work on
+  this data; the negation and hypothetical defences matter as synthetic regression cases.
+- No note exceeds 2,000 words, so no chunking is needed. Single specialty, so no
+  stratification by specialty is possible.
+
+### Two real bugs, both found by running the code rather than reading it
+1. **Abstentions were scored as near-certain PD.** `confidence_score` is confidence in the
+   *chosen* label, so P(PD) for a Non-PD prediction is `1 − confidence`. But the D13
+   abstention signature is Non-PD with a *low* confidence, which that formula turns into
+   `1 − 0.1 = 0.9`. With ~69% of records abstaining, the sign error dominated the ranking
+   and produced **ROC-AUC 0.079, 95% CI [0.007, 0.177] against random labels** — a value
+   chance cannot generate, which is what made it visible. Fixed by scoring an abstention as
+   a constant `UNINFORMATIVE_SCORE = 0.5` so abstentions tie and add no discrimination.
+   Also added a **selective-prediction** report: ROC-AUC over committed records plus
+   coverage, which is the more informative pair and ties back to Q1.2c.
+2. **The pipeline was not reproducible.** The per-note seed was `abs(hash(text))`, and
+   Python salts string hashing per process (PEP 456), so the failure tally changed between
+   runs. Fixed with SHA-256. Recorded prominently because Part 2.6 argues at length for
+   reproducibility and this was exactly the hidden non-determinism it warns about, sitting
+   in our own code. Verified: two consecutive runs now produce byte-identical output.
+
+A third, smaller defect: `is_abstention` is object dtype (it holds `None` for failed
+records), so `~series.fillna(False)` did *bitwise* negation and yielded -1/-2 instead of a
+boolean mask. Fixed with an explicit `.astype(bool)` and a comment, since the failure mode
+is silent and easy to reintroduce.
+
+### Decisions + rationale
+- **Two mocks, deliberately.** `call_local_llm(text) -> dict` satisfies the signature the
+  assignment specifies; `call_local_llm_messy(text) -> str` produces the malformed shapes
+  the assignment says will occur (fences, prose, truncation, invalid JSON, out-of-range
+  confidence, unknown fields). The pipeline calls the messy one, because a mock that only
+  returns clean dicts cannot test the parser that is being assessed.
+- **The mock quotes real substrings** of each note. Invented quotes would fail the
+  grounding check for the wrong reason and the failure tally would say nothing about the
+  parser.
+- **Part 2's `verify_output` is reused rather than reimplemented**, so 3.2 validates against
+  the actual Part-2 schema as the assignment requires.
+- **Bootstrap CIs on by default, not optional.** At 4 positives F1's interval is
+  `[0.000, 1.000]`; printing the point estimate alone would misinform, which is the Q1.2f
+  failure mode demonstrated on our own evaluation rather than asserted about someone else's.
+- **Two exclusion reasons reported separately** (parse failure vs missing label) because
+  they have different owners: one is a model/parser defect, the other a data problem.
+- **Dependency layout simplified further** in the README: `uv sync` alone is sufficient; the
+  only remaining extra is `postgres`, which the tests do not need.
+
+### Open
+- Part 4 (embeddings & vector search, E.1–E.3) not started.
+- PDF appendix decision from session 7 still open: the prompts now live only in `src/`, so a
+  reviewer reading the PDF alone would not see them.
