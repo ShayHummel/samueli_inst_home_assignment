@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/samueli-nlp-assignment.iml" filepath="$PROJECT_DIR$/.idea/samueli-nlp-assignment.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/samueli_inst_home_assignment.iml" filepath="$PROJECT_DIR$/.idea/samueli_inst_home_assignment.iml" />
     </modules>
   </component>
