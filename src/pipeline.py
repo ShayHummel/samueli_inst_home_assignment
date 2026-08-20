@@ -147,7 +147,8 @@ def classify_note(
     # a JSON string value rather than inside XML-style tags so it cannot terminate
     # its own container and continue as instructions (see 2.7).
     note_as_json = as_json_string(note_text)
-    stage1_raw = reasoning_llm(STAGE1_PROMPT.format_messages(note_json=note_as_json))
+    stage1_prompt = STAGE1_PROMPT.format_messages(note_json=note_as_json)
+    stage1_raw = reasoning_llm(stage1_prompt)
     transcript["stage1"] = stage1_raw
 
     # Stage 1's four closing lines are the machine contract. If the VERDICT line is
@@ -167,7 +168,8 @@ def classify_note(
     # -- Stage 2: structure ------------------------------------------------- #
     # Receives stage 1's output and *not* the note. That is a security property,
     # not an optimisation: it confines the prompt-injection surface to stage 1.
-    stage2_raw = structuring_llm(STAGE2_PROMPT.format_messages(stage_one_output=stage1_raw))
+    stage2_prompt = STAGE2_PROMPT.format_messages(stage_one_output=stage1_raw)
+    stage2_raw = structuring_llm(stage2_prompt)
     transcript["stage2"] = stage2_raw
 
     # -- Stage 3: validate, and Stage 4: repair on failure ------------------ #
@@ -188,12 +190,8 @@ def classify_note(
         # The repair prompt is given the validator's *exact* error text. A model
         # told "confidence_score: input should be less than or equal to 100" can
         # fix it; one told "invalid JSON" guesses.
-        stage2_raw = structuring_llm(
-            REPAIR_PROMPT.format_messages(
-                invalid_output=stage2_raw,
-                validation_error=report.failure_detail,
-            )
-        )
+        repair_prompt = REPAIR_PROMPT.format_messages(invalid_output=stage2_raw, validation_error=report.failure_detail, )
+        stage2_raw = structuring_llm(repair_prompt)
         transcript[f"repair_{attempts}"] = stage2_raw
         # Re-validated rather than trusted. A repair call is just another model
         # call and can fail in a new way.
@@ -223,12 +221,9 @@ def classify_note(
         # The auditor sees the note and the finished output, but never stage 1's
         # reasoning — shown the original argument, a reviewer tends to ratify it
         # rather than test it independently.
-        audit_raw = audit_llm(
-            SELF_CHECK_PROMPT.format_messages(
-                note_json=note_as_json,
-                candidate_json=classification.model_dump_json(indent=2),
-            )
-        )
+        nli_like_prompt = SELF_CHECK_PROMPT.format_messages(note_json=note_as_json,
+                                                     candidate_json=classification.model_dump_json(indent=2), )
+        audit_raw = audit_llm(nli_like_prompt)
         transcript["audit"] = audit_raw
         self_check = parse_self_check(audit_raw)
 
@@ -412,21 +407,18 @@ def _stage1_scenarios() -> None:  # pragma: no cover
         "reasoning tier | sees the note | emits prose + 4 machine-readable lines",
     )
 
+    result_1a = classify_note(PD_NOTE, reasoning_llm=_ScriptedLlm(PD_STAGE1), structuring_llm=_ScriptedLlm(_stage2()), )
     _scenario(
         "1a",
         "contract met: prose, then VERDICT / CONFIDENCE / EVIDENCE / REASONING",
-        classify_note(
-            PD_NOTE,
-            reasoning_llm=_ScriptedLlm(PD_STAGE1),
-            structuring_llm=_ScriptedLlm(_stage2()),
-        ),
+        result_1a,
     )
 
     # Stage 1 going off-contract is fatal and cheap to detect: with no VERDICT line
     # there is nothing for stage 2 to preserve, so drift could not be checked even
     # if stage 2 succeeded. The flow fails before paying for that second call.
     structurer = _ScriptedLlm(_stage2())
-    result = classify_note(
+    result_1b = classify_note(
         PD_NOTE,
         reasoning_llm=_ScriptedLlm("I think this is probably progression, hard to say."),
         structuring_llm=structurer,
@@ -434,7 +426,7 @@ def _stage1_scenarios() -> None:  # pragma: no cover
     _scenario(
         "1b",
         "off-contract: no VERDICT line, so there is nothing to preserve downstream",
-        result,
+        result_1b,
         note=f"stage 2 was called {structurer.calls} times - the flow fails before paying for it",
     )
 
@@ -445,16 +437,12 @@ def _stage2_scenarios() -> None:  # pragma: no cover
         "extraction tier | sees stage 1's output ONLY, never the note | emits JSON",
     )
 
+    result_2a = classify_note(PD_NOTE, reasoning_llm=_ScriptedLlm(PD_STAGE1), structuring_llm=_ScriptedLlm(
+        f"Sure, here it is:\n```json\n{_stage2()}\n```\nHope that helps!"), )
     _scenario(
         "2a",
         "conversational noise absorbed: fenced block with prose on both sides",
-        classify_note(
-            PD_NOTE,
-            reasoning_llm=_ScriptedLlm(PD_STAGE1),
-            structuring_llm=_ScriptedLlm(
-                f"Sure, here it is:\n```json\n{_stage2()}\n```\nHope that helps!"
-            ),
-        ),
+        result_2a,
         note="brace-matched extraction strips the fence and the prose - no repair needed",
     )
 
