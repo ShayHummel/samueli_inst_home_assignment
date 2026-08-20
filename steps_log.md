@@ -1798,3 +1798,37 @@ that stage 2 queues a first attempt plus a repair response, and that both are de
 Reported numbers unchanged (valid 85 / failed 5 / ROC-AUC 0.542), so the Part 3 figures stand.
 `evaluate.py` 492 → 489 lines, 105 → 108 tests, reachability still clean across all of `src/`,
 output byte-identical across runs.
+
+### Round 30 — clean-output probability raised to 0.8
+
+Instruction: set the clean-mode probability to 0.8. Done, with the remaining 0.2 distributed
+across the six malformed modes in their existing proportions and rounded to clean values:
+
+| mode | before | after | reaches the validator malformed? |
+| --- | ---: | ---: | --- |
+| clean | 0.55 | **0.80** | no |
+| fenced | 0.15 | 0.07 | no — brace-matched extraction handles it |
+| prose | 0.12 | 0.05 | no — same |
+| truncated | 0.06 | 0.03 | yes |
+| invalid JSON | 0.05 | 0.02 | yes |
+| out-of-range confidence | 0.04 | 0.02 | yes |
+| unknown field | 0.03 | 0.01 | yes |
+
+Sums to exactly 1.00. The malformed-reaching-validator rate goes from 0.18 to **0.08**.
+
+**Consequence worth stating plainly: the default run now reports zero failures.** Of 90 notes,
+~7 get malformed output and stage 4 recovers all of them at a 70% success rate. So 3.2's
+"count failures by error type" is demonstrated by an *empty* table in the headline output. The
+taxonomy still works and is still asserted, but a reviewer reading only the results block cannot
+see it. Flagged in Part 3 rather than left for them to notice, with the two knobs that would
+populate it named (clean rate, or `REPAIR_SUCCESS_RATE`).
+
+**One test had to be rewritten, and it was a latent flaw rather than fallout.**
+`test_run_pipeline_exercises_the_repair_stage` asserted `tally.failures > 0` at default
+settings — making the test a hostage to the mock's probability tuning, which is not what it was
+meant to check. It now asserts the *mechanism*: with repair disabled the malformed notes fail,
+every failed record carries a typed reason, and the per-type counts sum to the total. That is
+the requirement 3.2 actually states, and it holds at any tuning.
+
+Reported figures moved with the change (valid 85 → 90, ROC-AUC 0.542 → 0.573); Part 3 re-diffed
+against a live run. 108 tests, ruff clean, output byte-identical across runs.

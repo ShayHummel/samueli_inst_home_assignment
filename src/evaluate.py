@@ -134,9 +134,13 @@ def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
 
     A mock that only ever returns clean dicts cannot test the parser, and 3.2 is
     explicit that robust parsing is assessed: "fenced code blocks, trailing prose,
-    truncated or invalid JSON". Modes are drawn at fixed probabilities: clean 0.55,
-    fenced 0.15, prose 0.12, truncated 0.06, invalid JSON 0.05, out-of-range
-    confidence 0.04, unknown field 0.03.
+    truncated or invalid JSON". Modes are drawn at fixed probabilities: clean 0.80,
+    fenced 0.07, prose 0.05, truncated 0.03, invalid JSON 0.02, out-of-range
+    confidence 0.02, unknown field 0.01.
+
+    Note that ``fenced`` and ``prose`` are not failures — brace-matched extraction
+    handles both without a repair call. Only the last four (0.08 combined) reach the
+    validator as malformed, and stage 4 recovers most of those.
     """
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
     payload = _draw_payload(text, rng)
@@ -144,7 +148,7 @@ def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
 
     mode = rng.choice(
         ["clean", "fenced", "prose", "truncated", "invalid", "out_of_range", "extra_field"],
-        p=[0.55, 0.15, 0.12, 0.06, 0.05, 0.04, 0.03],
+        p=[0.80, 0.07, 0.05, 0.03, 0.02, 0.02, 0.01],
     )
     if mode == "clean":
         return body

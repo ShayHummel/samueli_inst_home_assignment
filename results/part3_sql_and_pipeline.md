@@ -162,7 +162,7 @@ four-line contract, and `mock_stage2_responses` queues stage 2's replies. So the
 exercises the real stage split, the verdict-preservation check and the bounded repair loop — the
 same code path production uses, with only the models swapped. Evaluating a lookalike measures
 the wrong thing, and did: an earlier version called the validator directly, skipping stage 4 and
-reporting **22 failures where the pipeline has 5**, because 17 records are rescued by repair.
+reporting failures that the real pipeline repairs away.
 
 Two properties of the mock are deliberate. Both stages are built from **one** `call_local_llm`
 draw per note, so they cannot disagree — which is why verdict drift never fires here, and why a
@@ -177,18 +177,26 @@ output each time would let almost everything recover by luck and empty the failu
 ```
 Failures by type                     Record accounting
   records: 90                          records in corpus            90
-  valid:   85                          excluded - pipeline failed    5
-  failed:  5                           excluded - no ground truth    0
-    no_json_found:      4              evaluated                    85
-    json_decode_error:  1              recovered by stage-4 repair  17
-                                       abstentions                  61
+  valid:   90                          excluded - pipeline failed    0
+  failed:  0                           excluded - no ground truth    0
+                                       evaluated                    90
+                                       recovered by stage-4 repair   8
+                                       abstentions                  63
 
 Confusion matrix                     PD-class metrics
-                pred Non-PD  pred PD    precision  0.714
-  true Non-PD            39        2    recall     0.114
-  true PD                39        5    f1         0.196
-                                        roc-auc    0.542
+                pred Non-PD  pred PD    precision  0.778
+  true Non-PD            40        2    recall     0.146
+  true PD                41        7    f1         0.246
+                                        roc-auc    0.573
 ```
+
+**Zero permanent failures on this corpus, and that is a tuning choice rather than a claim
+about the code.** The mock draws clean output 80% of the time; of the 8% that reaches the
+validator malformed, stage 4 recovers most, and on 90 notes nothing survives. The failure
+taxonomy is still exercised and asserted — `tests/test_evaluate.py` runs the same corpus with
+repair disabled and checks every failed record carries a typed reason — but a reviewer reading
+only this block sees an empty table. Lowering the clean rate or `REPAIR_SUCCESS_RATE` would
+populate it.
 
 **These numbers measure the harness, not clinical accuracy** — the labels are random by
 instruction, so no relationship to the predictions exists to be found. The output says so
@@ -204,13 +212,13 @@ direction, which is the honest encoding of "no evidence". That is why the select
 figure below, computed over the records the model actually committed on, is the more informative
 of the two.
 
-The number worth reading is **ROC-AUC 0.542** — close to 0.5, which is the right answer.
+The number worth reading is **ROC-AUC 0.573** — close to 0.5, which is the right answer.
 Against labels with no relationship to the input, a correct harness must find no
 discrimination, so this is the strongest available evidence that the evaluation code measures
 what it claims to. An AUC far from 0.5 here would be a signal to go looking for a bug, which is
 how an earlier sign error in the abstention scoring was caught.
 
-Precision 0.714 against recall 0.114 is the other thing to notice, and it is an artifact worth
+Precision 0.778 against recall 0.146 is the other thing to notice, and it is an artifact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class
 rarely makes precision look good and recall terrible — the threshold effect discussed in 3.3
 below, visible here by construction rather than by argument.
@@ -295,8 +303,8 @@ huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
 7. **Only then change the model.** Threshold, calibration and label quality account for this
    pattern far more often than model capacity does, and all three are cheaper to fix.
 
-This pipeline shows the pattern in miniature: ROC-AUC **0.542** against an F1 of **0.196**,
-with precision 0.714 and recall 0.114. The driver is abstention — most records carry no
+This pipeline shows the pattern in miniature: ROC-AUC **0.573** against an F1 of **0.246**,
+with precision 0.778 and recall 0.146. The driver is abstention — most records carry no
 evidence, so the model commits rarely, which flatters precision and destroys recall while
 leaving the ranking largely intact. With random labels the magnitude is noise; the mechanism is
 the point.
