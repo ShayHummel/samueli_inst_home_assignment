@@ -1289,3 +1289,37 @@ response once exhausted, which is what makes "never recovers" cases easy to scri
 Closing line of the walkthrough says so explicitly: a clean run proves little, and scenarios
 2–4 are what the design exists to handle. ruff clean, 106 tests pass, all invocation styles
 still behave.
+
+### Comment round 17 — a scenario set per architecture stage
+
+Candidate request: scenarios for **each** stage in the Part-2 pipeline architecture table, not
+just the four ad-hoc ones added in round 16. The gap that prompted it was real: **stage 5 was
+not demonstrated at all**, and stage 1's own failure mode was missing too.
+
+Restructured the walkthrough as a tour of the table — one section per stage, each showing the
+contract being met *and* how that stage fails. 14 scenarios:
+
+| Stage | Scenarios |
+| --- | --- |
+| 1 — Reason | 1a contract met · 1b off-contract, **and stage 2 is never called**, shown by call count |
+| 2 — Structure | 2a conversational noise absorbed without repair · 2b injection confinement, shown by inspecting both prompts |
+| 3 — Validate | 3a verdict drift · 3b fabricated evidence · 3c abstention recognised |
+| 4 — Repair | 4a recovered on retry 1 · 4b retries bounded and exhausted · 4c drift **not** repaired |
+| 5 — Audit | 5a passes · 5b rejects but keeps the output for triage · 5c malformed audit ≠ approval · 5d independence, shown by inspecting the auditor's prompt |
+
+Four scenarios prove properties by **inspecting what a stage was actually sent** rather than
+asserting them in prose: 1b (stage 2 called 0 times), 2b (the injected string is in stage 1's
+prompt and absent from stage 2's), 4c (`repairs=0` despite `max_repair_attempts=3`), and 5d
+(the note is in the auditor's prompt, stage 1's reasoning is not). Those are the security and
+design properties a reviewer would otherwise have to take on trust, and they are now visible in
+the program's own output.
+
+`_ScriptedLlm` gained prompt recording to make that possible, and repeats its last response once
+exhausted, which is what makes "never recovers" cases (4b) scriptable.
+
+**Corrected my own summary line.** It first listed 5c among the refusals, but 5c ends `ok=True`
+— a malformed audit is treated as *no* audit, so the record passes. Reworded to separate the
+six genuine refusals from 2b (containment) and 5c (declining to treat a malformed audit as
+approval).
+
+ruff clean, 106 tests pass.

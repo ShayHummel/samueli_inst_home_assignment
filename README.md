@@ -15,7 +15,7 @@ uv run ruff check .                      # lint: unused imports, undeclared pack
 
 uv run samueli-eda                       # EDA over hw_docs/Oncology.csv
 uv run samueli-evaluate                  # Task 3.2 evaluation
-uv run samueli-pipeline                  # Part 2 flow end to end, with a scripted model
+uv run samueli-pipeline                  # walkthrough: 14 scenarios, one set per stage
 ```
 
 The three commands above are console entry points and work from any directory. The equivalent
