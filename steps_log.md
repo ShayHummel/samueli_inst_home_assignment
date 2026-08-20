@@ -1936,3 +1936,45 @@ matters most here.
 scenario and asserts both the outcome and the retry count, so the reported failure mix is pinned
 to the table rather than to luck. 108 → 113 tests. Part 3 rewritten around the scenario table;
 figures re-diffed against a live run; output byte-identical across runs; ruff clean.
+
+### Round 33 — the mock collapsed to one linear function
+
+Two instructions: the mocking code is cumbersome and must be much simpler, following the flow
+*note → scenario → stage-1 response → stage-2 response → retry budget → run pipeline → convert
+to a dict*. And separately: the evidence quote does not matter, because what 3.2 evaluates is the
+PD / Non-PD decision.
+
+**The real problem was that the scenario was consulted in five places** — `scenario_for`,
+`call_local_llm`, `call_local_llm_messy`, `mock_stage1` and `mock_stage2_responses` each
+branched on it. Now exactly one function does:
+
+```
+mock_llm_responses(note) -> (stage1_text, stage2_responses, retry_budget)
+```
+
+Everything else is branch-free. `classify_one(note)` wires those into `classify_note`;
+`result_to_row(record, result)` flattens the result. That is the flow as described, one function
+per step.
+
+**Two things the "quote does not matter" observation let me delete outright.** `_QUOTE_TERMS`
+(13 lines of clinical vocabulary) and `_pick_quote` (20 lines of substring search) are gone. The
+quote is now the note's first twelve words — verbatim, so grounding passes, and irrelevant to
+every metric. Selecting a clinically plausible span was machinery that moved no number.
+
+**That also removed a hidden coupling worth recording.** Abstention had been *inferred* from
+whether `_pick_quote` found any status vocabulary, which made ~70% of the corpus abstain. Since
+abstentions score `p_pd = 0.5`, that tied most of the ROC-AUC input and left the metric resting
+on 19 records. Abstention is now scenario 3c alone, at 5%: **9 abstentions instead of 48, and 58
+of the 67 valid records carry an informative score.** The AUC is finally computed over data
+rather than over ties — 0.506, essentially exactly 0.5, which is the correct answer for random
+labels.
+
+Also folded away: `_mock_models`, `mock_stage1`, `mock_stage2_responses`, and
+`run_pipeline`'s `max_repair_attempts` parameter (the budget is a scenario property now, so
+there was nothing for a caller to choose). `call_local_llm_messy` survives as a one-line helper
+returning the first stage-2 response, since it names something worth naming.
+
+Mock section: 165 lines, down from roughly 260 spread across seven functions. Two tests were
+rewritten on stale premises — one asserted abstention followed from note vocabulary, the other
+varied a retry budget that no longer exists — and `test_every_scenario_produces_its_intended_outcome`
+already covers what the second was reaching for. 113 tests, ruff clean, byte-identical output.
