@@ -10,7 +10,7 @@ if needed).
 
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
-uv run pytest -q                         # 97 tests
+uv run pytest -q                         # 106 tests
 uv run python -m src.eda                 # EDA over hw_docs/Oncology.csv
 uv run python -m src.evaluate            # Task 3.2 evaluation
 uv run python -m src.pipeline            # Part 2 flow, end to end, with a scripted model
@@ -50,7 +50,7 @@ sql/
   schema.sql       DDL for the Task 3.1 clinical schema
   queries/         one file per query, each with its assumptions in a header
 
-tests/             97 tests
+tests/             106 tests
 hw_docs/           the assignment PDF and Oncology.csv
 ```
 

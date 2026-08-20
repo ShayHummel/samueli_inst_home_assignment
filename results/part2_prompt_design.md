@@ -196,10 +196,16 @@ result.classification.classification   # Classification.PD | Classification.NON_
 
 ### What each prompt carries, beyond the table above
 
-**Stage 1.** The closed-world constraint (the summary is the only source of truth; no outside
-knowledge, no completing of missing facts), the PD / Non-PD definitions with CR / PR / SD
-collapsing to Non-PD and mixed response counting as PD, the injection block, the D13 rule, and
-the six-step reading procedure.
+**Stage 1.** The PD / Non-PD definitions with CR / PR / SD collapsing to Non-PD and mixed
+response counting as PD, the injection block, the D13 rule, the six-step reading procedure —
+and a **scoped** grounding constraint. The scoping matters: an instruction to ignore outside
+medical knowledge would be self-defeating, since reading these notes *requires* knowing that
+PR is a response category and that "new hepatic lesions" means growth. So the prompt permits
+clinical knowledge for **interpreting** the text and forbids it for **supplying facts**,
+singling out the dangerous case — reasoning from what is typical for a disease or treatment
+line, which describes patients in general rather than this one. The prompt can afford that
+latitude because grounding is enforced in code: every quote is checked against the note, so a
+conclusion with nothing behind it fails regardless of how it was reached.
 
 **Stage 2.** Framed as a formatting *function* rather than an assistant — no judgement, no
 re-evaluation, and an explicit prohibition on changing the verdict — plus a literal

@@ -1135,3 +1135,40 @@ is silent at definition time and only surfaces at use.
 deviation, then a "Two scales, one boundary" subsection. All "deviates from the assignment"
 language removed from the repository. Metrics are unchanged, as the rescale is
 order-preserving. 97 → 100 tests.
+
+### Comment round 13 — the closed-world instruction was self-defeating
+
+Candidate observation on `stage1_reasoning.py`: *"The llm needs to use its medical knowledge. I
+think this paragraph is too hard."* Correct, and it was a self-contradiction rather than merely
+harsh wording — the prompt banned outside medical knowledge and then supplied RECIST
+definitions two paragraphs later, which is outside medical knowledge.
+
+The task cannot be done without it. Recognising that PR is a response category, that `s/p`
+means status post, or that "new hepatic lesions" describes growth even where the words
+"progressive disease" never appear, is all knowledge the note does not contain.
+
+**The distinction the prompt should have drawn is interpretation vs. supplying facts:**
+- *Permitted* — reading the text: expanding abbreviations, recognising response categories,
+  understanding that a described finding constitutes progression.
+- *Forbidden* — asserting facts about this patient that the note does not state, and in
+  particular **reasoning from what is typical**: "patients on second-line usually progressed on
+  first-line", "this cancer usually behaves like X". Population priors describe patients in
+  general, not this one, and they produce a confident verdict with nothing in the note behind
+  it. That is the dangerous case, and the old blanket ban failed to name it while forbidding
+  things the task requires.
+
+Rewritten as "WHAT YOUR MEDICAL KNOWLEDGE IS FOR" — permission first with concrete examples,
+then the prohibition with its own concrete example, then the D13 fallback.
+
+**The same wording was in the auditor prompt, where it was worse:** judging whether a quote
+entails a verdict is *entirely* a knowledge task, so a ban there would have disabled the
+check. Fixed consistently.
+
+**Why the latitude is safe.** Grounding is enforced in code, not by persuasion — every quote is
+checked verbatim against the note, so a conclusion reached by illegitimate reasoning still
+fails if it cannot be quoted. The prompt does not have to carry that burden alone, which is
+what allows it to be permissive about interpretation.
+
+New `tests/test_prompt_content.py` (6 tests) pins these decisions, since an edit reversing them
+would break nothing else in the suite. Assertions are whitespace-normalised so they survive
+re-wrapping the prompt text. 100 → 106 tests.
