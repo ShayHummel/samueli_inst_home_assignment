@@ -106,10 +106,22 @@ and the half-open form stays index-sargable. Department is matched exactly, beca
 `ILIKE '%neurolog%'` would also capture *Neurosurgery*.
 
 **Query 2 — "every patient" is read literally.** A patient with no visits appears with
-NULLs, via `LEFT JOIN LATERAL … LIMIT 1`. A `GROUP BY` over `visits` would silently drop
+NULLs, via `DISTINCT ON` inside a `LEFT JOIN`. A `GROUP BY` over `visits` would silently drop
 them and quietly answer a different question: "every patient *who has visited*". Ties on
 `visit_date` break to the lower `visit_id`, so the result is deterministic — without a
 tie-break, two visits on one day make the returned department arbitrary.
+
+An equivalent `LEFT JOIN LATERAL … LIMIT 1` formulation is documented beside it, together with
+the reason its correlation predicate must sit in the subquery's `WHERE` rather than in the `ON`
+clause. Moved to `ON`, the subquery stops being correlated and returns **one row globally** —
+the earliest visit in the whole table — which is then matched per patient, so every other
+patient silently loses their first visit. It raises no error, which is what makes it worth a
+test rather than a comment: `test_moving_the_lateral_correlation_to_on_silently_loses_rows`
+asserts the breakage, and `test_distinct_on_and_lateral_formulations_agree` asserts the two
+correct forms are equivalent. `DISTINCT ON` is the shipped version because the join predicate
+sits where a reader expects it and it matches the idiom already used in query 5; `LATERAL` is
+the optimisation to reach for if this ever runs hot on a large `visits` table, since it probes
+an index once per patient instead of sorting every visit.
 
 **Query 3 — `LIKE 'G20%'`, not `= 'G20'`.** ICD-10-CM split G20 into subcodes (G20.A1,
 G20.B2, …) from FY2024, so an exact match silently misses patients coded under the newer
@@ -133,7 +145,7 @@ PostgreSQL form, with a portable `ROW_NUMBER()` equivalent in the file's footer.
 
 ### Unit tests
 
-[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 20 tests, run against a real
+[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 22 tests, run against a real
 PostgreSQL cluster. The tests target boundaries rather than happy paths, because that is
 where a plausible-looking query is wrong: visits on 31 December vs 1 January, a patient with
 no visits, a visit with no diagnoses, a prescription with a NULL `visit_id`, same-day visit

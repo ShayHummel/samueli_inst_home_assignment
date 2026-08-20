@@ -332,3 +332,93 @@ def test_no_notes_at_all_returns_no_rows(run_query, seed):
     seed("patients", "patient_id", [(1,)])
     seed("visits", "visit_id, patient_id, visit_date, department", [(10, 1, "2025-01-01", "Neurology")])
     assert run_query("05") == []
+
+
+# --------------------------------------------------------------------------- #
+# 3.1.2  the DISTINCT ON and LATERAL formulations must agree
+# --------------------------------------------------------------------------- #
+
+LATERAL_FIRST_VISIT = """
+SELECT p.patient_id,
+       fv.visit_date AS first_visit_date,
+       fv.department AS first_visit_department
+FROM patients AS p
+LEFT JOIN LATERAL (
+    SELECT v.visit_date, v.department
+    FROM visits AS v
+    WHERE v.patient_id = p.patient_id
+    ORDER BY v.visit_date, v.visit_id
+    LIMIT 1
+) AS fv ON TRUE
+ORDER BY p.patient_id;
+"""
+
+# The same query with the correlation moved from WHERE to ON. Kept here precisely
+# because it looks reasonable and is silently wrong.
+LATERAL_CORRELATION_IN_ON = """
+SELECT p.patient_id,
+       fv.visit_date AS first_visit_date,
+       fv.department AS first_visit_department
+FROM patients AS p
+LEFT JOIN LATERAL (
+    SELECT v.patient_id, v.visit_date, v.department
+    FROM visits AS v
+    ORDER BY v.visit_date, v.visit_id
+    LIMIT 1
+) AS fv ON fv.patient_id = p.patient_id
+ORDER BY p.patient_id;
+"""
+
+
+@pytest.fixture
+def two_patients_with_visits(seed):
+    seed("patients", "patient_id", [(1,), (2,), (3,)])
+    seed(
+        "visits",
+        "visit_id, patient_id, visit_date, department",
+        [
+            (10, 1, "2022-01-15", "Neurology"),
+            (11, 1, "2023-05-01", "Cardiology"),
+            (12, 2, "2024-03-03", "Oncology"),
+            # patient 3 deliberately has no visits
+        ],
+    )
+
+
+def _rows(db, sql):
+    import psycopg.rows
+
+    with db.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(sql)
+        return cur.fetchall()
+
+
+def test_distinct_on_and_lateral_formulations_agree(db, run_query, two_patients_with_visits):
+    """The shipped query and the LATERAL variant documented beside it are equivalent."""
+    assert run_query("02") == _rows(db, LATERAL_FIRST_VISIT)
+
+
+def test_moving_the_lateral_correlation_to_on_silently_loses_rows(
+    db, run_query, two_patients_with_visits
+):
+    """Pins why the correlation lives in WHERE, not ON.
+
+    Without LATERAL's correlation the subquery returns ONE row globally — the
+    earliest visit in the whole table — which is then matched per patient. It
+    raises no error; it just drops everyone else's first visit. Asserting the
+    breakage means the explanation in the .sql header cannot rot into folklore.
+    """
+    correct = {r["patient_id"]: r["first_visit_date"] for r in run_query("02")}
+    broken = {
+        r["patient_id"]: r["first_visit_date"]
+        for r in _rows(db, LATERAL_CORRELATION_IN_ON)
+    }
+
+    assert correct[1] == dt.date(2022, 1, 15)
+    assert correct[2] == dt.date(2024, 3, 3)
+    assert correct[3] is None
+
+    # Patient 1 happens to own the globally earliest visit, so it survives...
+    assert broken[1] == dt.date(2022, 1, 15)
+    # ...and patient 2's visit is silently lost.
+    assert broken[2] is None

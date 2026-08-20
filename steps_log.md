@@ -1323,3 +1323,40 @@ six genuine refusals from 2b (containment) and 5c (declining to treat a malforme
 approval).
 
 ruff clean, 106 tests pass.
+
+### Comment round 18 — LATERAL correlation placement in query 2
+
+`@claude` comment on `02_first_visit_per_patient.sql`: *"this is weird since I think it should
+be on the 'ON' part. no?"*, followed by *"What is LEFT JOIN LATERAL?"*
+
+**The instinct is right for a plain join and wrong for LATERAL, and the failure is silent.**
+`LATERAL` makes a FROM-clause subquery *correlated*: evaluated once per row of the table to its
+left, able to reference that row's columns — SQL's for-each loop. `ON TRUE` is filler, since the
+grammar demands an `ON` for a `LEFT JOIN` but the correlation already happened inside.
+
+The predicate cannot move to `ON` because **`LIMIT 1` has to apply per patient**. Inside the
+`WHERE` it does. Moved to `ON`, the subquery is no longer correlated and returns **one row
+globally** — the earliest visit in the entire table — which is then matched against each
+patient. Verified on a throwaway cluster: with visits for patients 1 and 2, the `ON` form
+returns patient 1's visit and **silently drops patient 2's**. No error, just wrong data.
+
+**But the comment identified a real readability problem, so the query was changed rather than
+merely explained.** Switched the shipped version to `DISTINCT ON` inside a plain `LEFT JOIN`,
+which:
+- puts the join predicate in `ON`, exactly where the candidate expected it;
+- needs no explanation of `LATERAL` to read;
+- matches the idiom already used in query 5;
+- still keeps visit-less patients, which was the reason for the outer join in the first place.
+
+The `LATERAL` form is kept alongside as documented alternative with the trade-off stated:
+`DISTINCT ON` sorts all of `visits` once, `LATERAL` probes an index once per patient, so
+`LATERAL` is the optimisation to reach for on a large table with comparatively few patients.
+
+**Two tests added**, because an explanation in a comment rots and a test does not:
+- `test_distinct_on_and_lateral_formulations_agree` — the shipped query and the documented
+  alternative return identical rows.
+- `test_moving_the_lateral_correlation_to_on_silently_loses_rows` — asserts the *breakage*,
+  keeping the wrong form in the suite precisely because it looks reasonable. Patient 1 survives
+  (they happen to own the globally earliest visit) and patient 2's visit is lost.
+
+20 → 22 SQL tests, 108 total. Part 3 write-up and README updated.
