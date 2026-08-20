@@ -52,8 +52,9 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from .pipeline import LlmCallable, classify_note
 from .schema import RAW_ABSTENTION_CONFIDENCE_CEILING, Classification
-from .validation import FailureTally, verify_output
+from .validation import FailureTally
 
 #: Label encoding fixed by the assignment: 0 = Non-PD, 1 = PD.
 LABEL_NON_PD, LABEL_PD = 0, 1
@@ -159,7 +160,11 @@ def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     ==========================  =====  ==================================
     """
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
-    payload = _draw_payload(text, rng)
+    return _wrap_messy(_draw_payload(text, rng), rng)
+
+
+def _wrap_messy(payload: dict, rng: np.random.Generator) -> str:
+    """Render one payload as raw model output, sometimes malformed."""
     body = json.dumps(payload, indent=2)
 
     mode = rng.choice(
@@ -279,55 +284,127 @@ class RunOutcome:
 
     @property
     def valid(self) -> pd.DataFrame:
-        return self.frame[self.frame["parse_ok"]]
+        return self.frame[self.frame["ok"]]
 
 
-def run_pipeline(df: pd.DataFrame, *, messy: bool = True) -> RunOutcome:
-    """Classify every transcription, validating each output.
+def _stage1_text(payload: dict) -> str:
+    """Render a payload as a stage-1 response: prose, then the four labeled lines.
+
+    Derived from the *same* payload the structuring mock will format, so the two
+    stages agree and the verdict-preservation check does not fire spuriously. A mock
+    whose stages disagreed would report verdict drift on every record and tell us
+    nothing about the parser.
+    """
+    quotes = payload["supporting_evidence"]
+    evidence = " | ".join(f'"{q}"' for q in quotes) if quotes else "NONE"
+    return (
+        "1. LOCATE. ...\n2. SUBJECT. ...\n3. ASSERTION STATUS. ...\n"
+        "4. TIMEPOINT. ...\n5. RESOLVE. ...\n6. DECIDE.\n\n"
+        f"VERDICT: {payload['classification']}\n"
+        f"CONFIDENCE: {payload['confidence_score']:g}\n"
+        f"EVIDENCE: {evidence}\n"
+        f"REASONING: {payload['clinical_reasoning']}"
+    )
+
+
+#: Fraction of malformed stage-2 outputs that a repair call recovers. Not 1.0 on
+#: purpose: if repair always worked the failure tally would be empty, and 3.2 asks
+#: for failures counted by type. Deterministic per note.
+REPAIR_SUCCESS_RATE = 0.7
+
+
+def _mock_models(note: str, *, messy: bool) -> tuple[LlmCallable, LlmCallable]:
+    """Scripted stage-1 and stage-2 models for one note.
+
+    Both derive from a single ``_draw_payload`` draw seeded on the note text, so the
+    pair is self-consistent and reproducible. The structuring mock is stateful: its
+    first response may be malformed, and a subsequent call — which only happens when
+    stage 3 rejected the first and stage 4 is retrying — usually returns clean JSON.
+    That is what makes the repair path observable in the reported numbers.
+    """
+    payload = _draw_payload(note, np.random.default_rng(_text_seed(note)))
+    stage1 = _stage1_text(payload)
+
+    rng = np.random.default_rng(_text_seed(note))
+    repair_recovers = bool(np.random.default_rng(_text_seed(note) + 1).random()
+                           < REPAIR_SUCCESS_RATE)
+    state: dict = {"calls": 0, "first": None}
+
+    def reasoning_llm(_messages):
+        return stage1
+
+    def structuring_llm(_messages):
+        state["calls"] += 1
+        if not messy:
+            return json.dumps(payload)
+        if state["calls"] == 1:
+            state["first"] = _wrap_messy(payload, rng)
+            return state["first"]
+        # A retry. Either the repair prompt lands, or the model repeats its mistake --
+        # returning the *same* malformed output rather than a fresh random one, so a
+        # non-recovering note stays failed however many attempts are allowed. Drawing
+        # again would let almost everything recover by luck and empty the failure tally.
+        return json.dumps(payload) if repair_recovers else state["first"]
+
+    return reasoning_llm, structuring_llm
+
+
+def run_pipeline(
+    df: pd.DataFrame, *, messy: bool = True, max_repair_attempts: int = 2
+) -> RunOutcome:
+    """Run every transcription through the real Part-2 pipeline.
+
+    Deliberately calls :func:`~src.pipeline.classify_note` rather than reimplementing
+    "call a model, then validate". Evaluating a lookalike of the shipped flow would
+    measure the wrong thing: this way the reported numbers exercise the stage-1 /
+    stage-2 split, the verdict-preservation check, and the bounded repair loop —
+    the same code path production would use, with only the models swapped.
 
     Args:
-        df: Frame with a ``transcription`` column and a ``ground_truth`` column.
-        messy: If True (the default) use the messy raw-text mock so the robust
-            parsing and repair paths are exercised. False uses the clean dict mock.
+        df: Frame with ``transcription`` and ``ground_truth`` columns.
+        messy: If True (default), stage 2 may emit malformed output, so the robust
+            parsing and repair paths are exercised. False makes every response clean.
+        max_repair_attempts: Passed through to the pipeline.
     """
     tally = FailureTally()
     rows: list[dict] = []
 
     for _, record in df.iterrows():
         note = record["transcription"]
+        reasoning_llm, structuring_llm = _mock_models(note, messy=messy)
 
-        if messy:
-            raw = call_local_llm_messy(note)
-        else:
-            raw = json.dumps(call_local_llm(note))
-
-        report = tally.record(verify_output(raw, note, stage1_verdict=None))
+        result = classify_note(
+            note,
+            reasoning_llm=reasoning_llm,
+            structuring_llm=structuring_llm,
+            max_repair_attempts=max_repair_attempts,
+            tally=tally,
+        )
 
         row = {
             "source_row_id": record.get("source_row_id"),
             "ground_truth": record.get("ground_truth"),
-            "parse_ok": report.ok,
-            "failure_type": report.failure_type.value if report.failure_type else None,
-            "failure_detail": report.failure_detail or None,
+            "ok": result.ok,
+            "failure_type": result.failure_type.value if result.failure_type else None,
+            "failure_detail": result.failure_detail or None,
+            "repair_attempts": result.repair_attempts,
             "predicted_label": None,
             "confidence_score": None,
             "p_pd": None,
             "is_abstention": None,
             "n_evidence": None,
         }
-        if report.ok and report.result is not None:
-            result = report.result
-            predicted = (
-                LABEL_PD if result.classification is Classification.PD else LABEL_NON_PD
-            )
+        if result.ok and result.classification is not None:
+            c = result.classification
+            predicted = LABEL_PD if c.classification is Classification.PD else LABEL_NON_PD
             row.update(
                 predicted_label=predicted,
-                confidence_score=result.confidence_score,
+                confidence_score=c.confidence_score,
                 p_pd=probability_of_pd(
-                    predicted, result.confidence_score, is_abstention=result.is_abstention
+                    predicted, c.confidence_score, is_abstention=c.is_abstention
                 ),
-                is_abstention=result.is_abstention,
-                n_evidence=len(result.supporting_evidence),
+                is_abstention=c.is_abstention,
+                n_evidence=len(c.supporting_evidence),
             )
         rows.append(row)
 
@@ -379,7 +456,7 @@ class Metrics:
     """Evaluation results, with the record accounting that makes them interpretable."""
 
     n_total: int
-    n_parse_failed: int
+    n_pipeline_failed: int
     n_missing_ground_truth: int
     n_evaluated: int
     n_positive: int
@@ -391,6 +468,8 @@ class Metrics:
     f1_ci: tuple[float, float] | None = None
     roc_auc_ci: tuple[float, float] | None = None
     n_abstentions: int = 0
+    #: Records that failed validation once and were rescued by stage 4.
+    n_recovered_by_repair: int = 0
     #: ROC-AUC restricted to records the model committed on (selective prediction).
     roc_auc_committed: float | None = None
     n_committed: int = 0
@@ -398,11 +477,12 @@ class Metrics:
     def render(self) -> str:
         lines = ["Record accounting", "-" * 68]
         lines.append(f"  records in corpus                 {self.n_total}")
-        lines.append(f"  excluded - parse/validation failed {self.n_parse_failed}")
+        lines.append(f"  excluded - pipeline failed              {self.n_pipeline_failed}")
         lines.append(f"  excluded - no ground truth         {self.n_missing_ground_truth}")
         lines.append(f"  evaluated                          {self.n_evaluated}")
         lines.append(f"  of which PD (positive class)       {self.n_positive}")
         lines.append(f"  abstentions among valid outputs    {self.n_abstentions}")
+        lines.append(f"  recovered by stage-4 repair        {self.n_recovered_by_repair}")
 
         if self.n_evaluated == 0 or self.confusion is None:
             lines.append("\nNo evaluable records — metrics undefined.")
@@ -461,18 +541,19 @@ def evaluate(
     """Compute metrics, excluding unusable records and reporting the exclusions."""
     frame = outcome.frame
     n_total = len(frame)
-    n_parse_failed = int((~frame["parse_ok"]).sum())
+    n_pipeline_failed = int((~frame["ok"]).sum())
 
-    valid = frame[frame["parse_ok"]]
+    valid = frame[frame["ok"]]
     n_missing_gt = int(valid["ground_truth"].isna().sum())
 
     evaluable = valid[valid["ground_truth"].notna()]
     n_abstentions = int(valid["is_abstention"].fillna(False).astype(bool).sum())
+    n_recovered = int(((frame["repair_attempts"] > 0) & frame["ok"]).sum())
 
     if evaluable.empty:
         return Metrics(
             n_total=n_total,
-            n_parse_failed=n_parse_failed,
+            n_pipeline_failed=n_pipeline_failed,
             n_missing_ground_truth=n_missing_gt,
             n_evaluated=0,
             n_positive=0,
@@ -482,6 +563,7 @@ def evaluate(
             f1=None,
             roc_auc=None,
             n_abstentions=n_abstentions,
+            n_recovered_by_repair=n_recovered,
         )
 
     y_true = evaluable["ground_truth"].astype(int).to_numpy()
@@ -521,7 +603,7 @@ def evaluate(
 
     return Metrics(
         n_total=n_total,
-        n_parse_failed=n_parse_failed,
+        n_pipeline_failed=n_pipeline_failed,
         n_missing_ground_truth=n_missing_gt,
         n_evaluated=len(evaluable),
         n_positive=int(y_true.sum()),
@@ -533,6 +615,7 @@ def evaluate(
         f1_ci=f1_ci,
         roc_auc_ci=auc_ci,
         n_abstentions=n_abstentions,
+        n_recovered_by_repair=n_recovered,
         roc_auc_committed=roc_auc_committed,
         n_committed=len(committed),
     )

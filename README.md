@@ -10,7 +10,7 @@ if needed).
 
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
-uv run pytest -q                         # 110 tests
+uv run pytest -q                         # 113 tests
 uv run ruff check .                      # lint: unused imports, undeclared packages
 
 uv run samueli-evaluate                  # Task 3.2 evaluation
@@ -59,7 +59,7 @@ sql/
   schema.sql       DDL for the Task 3.1 clinical schema
   queries/         one file per query, each with its assumptions in a header
 
-tests/             110 tests
+tests/             113 tests
 hw_docs/           the assignment PDF and Oncology.csv
 ```
 

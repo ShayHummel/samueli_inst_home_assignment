@@ -155,7 +155,7 @@ def test_pipeline_never_raises_and_tallies_every_record():
 def test_failures_are_attributed_to_a_type_never_swallowed():
     df = frame([f"no evidence of progression case {i}" for i in range(120)], [0.0] * 120)
     outcome = run_pipeline(df)
-    failed = outcome.frame[~outcome.frame["parse_ok"]]
+    failed = outcome.frame[~outcome.frame["ok"]]
     assert not failed.empty, "expected the messy mock to produce some failures"
     assert failed["failure_type"].notna().all()
     assert failed["failure_detail"].notna().all()
@@ -187,7 +187,7 @@ def test_exclusions_are_visible_in_the_rendered_report():
     df = frame([NOTE_WITH_STATUS] * 6, [0.0, 1.0, None, 0.0, 1.0, 0.0])
     text = evaluate(run_pipeline(df, messy=False), bootstrap=0).render()
     assert "records in corpus" in text
-    assert "parse/validation failed" in text
+    assert "pipeline failed" in text
     assert "evaluated" in text
 
 
@@ -231,7 +231,43 @@ def test_bootstrap_interval_brackets_the_point_estimate():
 
 def test_metrics_render_is_stable_for_an_empty_run():
     m = Metrics(
-        n_total=0, n_parse_failed=0, n_missing_ground_truth=0, n_evaluated=0,
+        n_total=0, n_pipeline_failed=0, n_missing_ground_truth=0, n_evaluated=0,
         n_positive=0, confusion=None, precision=None, recall=None, f1=None, roc_auc=None,
     )
     assert "metrics undefined" in m.render()
+
+
+# --------------------------------------------------------------------------- #
+# The evaluation must exercise the shipped pipeline, not a lookalike
+# --------------------------------------------------------------------------- #
+
+
+def test_run_pipeline_exercises_the_repair_stage():
+    """3.2 evaluates `classify_note`, so stage 4 must actually run.
+
+    An earlier version called `verify_output` directly, which skipped the
+    stage-1/stage-2 split, the verdict-preservation check and the repair loop —
+    measuring a lookalike of the shipped flow and overstating the failure rate.
+    """
+    notes = [f"no evidence of progression, case {i}" for i in range(120)]
+    outcome = run_pipeline(frame(notes, [0.0] * 120))
+
+    recovered = outcome.frame[(outcome.frame["repair_attempts"] > 0) & outcome.frame["ok"]]
+    assert not recovered.empty, "no record was rescued by repair — stage 4 is not running"
+    assert outcome.tally.failures > 0, "some notes must remain failed, or the tally is vacuous"
+
+
+def test_repair_disabled_raises_the_failure_count():
+    """Direct evidence that the recovered records really are repair's doing."""
+    df = frame([f"no evidence of progression, case {i}" for i in range(120)], [0.0] * 120)
+    with_repair = run_pipeline(df, max_repair_attempts=2).tally.failures
+    without = run_pipeline(df, max_repair_attempts=0).tally.failures
+    assert without > with_repair
+
+
+def test_stage_one_and_stage_two_mocks_agree_so_drift_never_fires():
+    """A mock whose stages disagreed would report verdict drift on every record."""
+    from src.validation import FailureType
+
+    outcome = run_pipeline(frame([NOTE_WITH_STATUS, NOTE_WITHOUT_STATUS] * 20, [0.0, 1.0] * 20))
+    assert outcome.tally.as_dict()[FailureType.VERDICT_DRIFT.value] == 0

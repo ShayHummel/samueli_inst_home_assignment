@@ -1622,3 +1622,47 @@ Checked for the traps rather than trusting the sweep:
 
 Verified: a final regex sweep over all 15 UK stem families returns nothing, ruff clean, 110
 tests pass, both entry points run.
+
+### Round 26 — the 3.2 evaluation now drives `classify_note`
+
+`@claude` comment on `run_pipeline`: *"why not use classify_note in pipeline.py with the relevant
+mocks?"* No good reason. It was a real design flaw, and the most consequential comment of the
+review so far.
+
+**What was wrong.** `run_pipeline` called `verify_output` directly, so the measured run bypassed
+the stage-1/stage-2 split, the verdict-preservation check and — critically — the **bounded
+repair loop**. Task 3.2's numbers therefore described a lookalike of the shipped flow rather
+than the flow itself, which is precisely the mistake the assignment's own Part-1 answers warn
+about: measuring something other than the deployed system.
+
+**How much it mattered:** the old path reported **22 failures**; the actual pipeline has **6**,
+because **17 records are rescued by stage 4**. The evaluation was overstating the failure rate
+by more than 3x by omitting a stage the design already had.
+
+**The refactor.** `run_pipeline` now wires the mocks in as the stage-1 and stage-2 models and
+calls `classify_note` per record — same code path as production, models swapped. Two details
+that needed care:
+
+- **`_stage1_text(payload)`** renders a stage-1 response from the *same* seeded draw the
+  structuring mock will format, so the two stages agree. A mock whose stages disagreed would
+  report verdict drift on every record and measure nothing.
+- **Non-recovery had to be made persistent.** The first attempt gave each retry a fresh random
+  draw, so nearly everything recovered by luck and the failure tally emptied — a test caught it.
+  A note whose repair does not land now receives the *same* malformed output on every retry,
+  which is both more realistic (a model repeating its mistake) and what keeps 3.2's
+  "count failures by error type" requirement meaningful. Repair recovers 70%, deterministic per
+  note.
+
+**Two reporting improvements fell out of it.** `recovered by stage-4 repair` is now a line in the
+record accounting — the repair stage visibly earning its place instead of being asserted to. And
+the column `parse_ok` was renamed `ok`, with the report label changing from "parse/validation
+failed" to "pipeline failed", because the outcome now covers verdict drift and audit rejection
+too, not just parsing.
+
+**Three tests pin the design** so it cannot regress to a lookalike: that some record is rescued
+by repair (stage 4 is running); that disabling repair raises the failure count (the recoveries
+really are repair's doing); and that verdict drift never fires (the two mocks agree). 110 → 113
+tests.
+
+Part 3 and the README updated; every figure in the document re-diffed against a live run, and
+output is byte-identical across runs.
