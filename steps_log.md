@@ -875,3 +875,102 @@ is silent and easy to reintroduce.
 - Part 4 (embeddings & vector search, E.1–E.3) not started.
 - PDF appendix decision from session 7 still open: the prompts now live only in `src/`, so a
   reviewer reading the PDF alone would not see them.
+
+---
+
+## 2026-08-20 — Session 9: Part 4
+
+**Part:** Part 4 — Embeddings & Vector Search (E.1–E.3). Written by me at the candidate's
+request; the candidate will review Parts 2, 3 and 4 together.
+
+### E.1 — Embedding model selection
+Led with the tension rather than a model list, because the tension is what determines the
+architecture: **no single model is both best-in-class for clinical text and competent in
+Hebrew.** The strongest clinical embedders (MedCPT, SapBERT) are English-only; the
+strongest Hebrew-capable ones (BGE-M3, mE5, GTE) are general-domain.
+
+Resolution: **BGE-M3 primary** — multilingual, 8,192-token context (so the EDA's
+~2,000-token maximum needs no chunking at all, removing a class of boundary bugs), and it
+emits dense + sparse + multi-vector from one model. The sparse channel is the specific
+reason to prefer it: clinical text turns on rare tokens (drug names, ICD codes, `s/p`,
+`PR`) that dense embeddings smooth away.
+
+Each domain model assigned the role it is actually built for, which is where these answers
+usually go wrong:
+- **SapBERT is an entity linker, not a passage retriever** — trained on short UMLS synonym
+  pairs. Used for concept normalisation, whose CUIs then become *metadata* feeding E.2's
+  filters. Embedding whole notes with it would be a category error.
+- **MedCPT is trained on PubMed abstracts, not clinical notes.** Real distribution gap
+  between academic prose and telegraphic EHR text. Assigned to a literature corpus only;
+  pointing it at notes because the name contains "Med" is the mistake to avoid.
+- **BM25 as a mandatory baseline.** Often embarrassingly competitive on clinical corpora,
+  since much clinical retrieval is known-item search for a named drug or code.
+
+Empirical protocol: three labelled-set sources ordered by cost (mined `IMPRESSION`→body
+pairs, known-item search, pooled clinician relevance judgments), reusing Q1.2b's annotation
+discipline including the human agreement ceiling. **Recall@k prioritised over nDCG**, since
+retrieval failure is unrecoverable downstream while imperfect ranking within a good
+candidate set is survivable. Stratified by language so an aggregate cannot hide Hebrew
+failing. Operational envelope included because **re-embedding millions of notes is a
+multi-day GPU job, making model choice close to irreversible.**
+
+### E.2 — Vector store
+**pgvector on PostgreSQL**, and deliberately not on vector-benchmark grounds — it loses
+those. The argument is **metadata authority**: the clinical metadata to filter on is already
+in PostgreSQL (it is literally the Part 3.1 schema), so filtering is a join against
+authoritative tables rather than a lookup in a denormalised copy that drifts. Drifted
+metadata in a vector store is a PHI-leak vector — a patient deleted from the EHR whose
+vectors still answer queries. Plus transactions, **row-level security** (very hard to
+retrofit onto a bolt-on vector DB, and potentially decisive in a hospital), and reuse of an
+already-security-reviewed component, since in a locked-down environment every additional
+component is a review cycle.
+
+Qdrant named as the benchmark-gated alternative with its true cost stated (a second
+stateful system to secure, audit, back up and keep in sync), rather than dismissed.
+
+**The crux is that post-filtering fails silently.** Worked example: 40 notes for one patient
+among 10 million; ANN returns the 100 globally nearest, none of which belong to that
+patient, so post-filtering returns an **empty set** — and an empty context is worse than a
+wrong one, because the model answers ungrounded and confabulates while the retrieval layer
+reports success. Three correct approaches given, led by the observation that **most clinical
+retrieval is patient-scoped, so filtering first and brute-forcing 40 vectors is
+sub-millisecond and exactly correct — meaning much of this workload barely needs an ANN
+index at all**, which further weakens the dedicated-engine performance argument.
+
+### E.3 — RAG failure mode
+Primary: **cross-patient contamination converts a safe abstention into a confident error.**
+A terse note (68.9% of this corpus, per the EDA) retrieves semantically similar notes; the
+closest are the *richest*, hence disproportionately those with explicit progression
+language, from **other patients**. The model returns PD at 0.9 confidence with a **verbatim
+supporting quote** — every surface signal of good grounding — about the wrong patient.
+
+The point that makes it a real answer: without RAG this note would have taken the D13
+abstention path and been routed to a clinician. **RAG replaced a correct, safe, reviewed
+outcome with a confident, evidence-backed, wrong, unreviewed one** — confidence suppresses
+the review that would have caught it. Adding capability lost safety.
+
+Also noted honestly that **our design catches this by luck turned into design**: the
+grounding check verifies quotes against *the note under classification*, not "the provided
+context". Had it been written the natural way once RAG exists, it would pass. The
+distinction between *source document* and *context window* is load-bearing.
+
+Three shorter variants: temporal contamination (D9's trap re-introduced through the
+retrieval layer *after* the prompt solved it), evidence dilution (lost-in-the-middle, where
+extraction accuracy can fall below the no-retrieval baseline while every retrieval metric
+looks healthy — the reason E.1 insists on end-to-end metrics), and negation-driven
+inversion (embeddings rank "no evidence of progression" adjacent to its opposite).
+
+Closing principle: **RAG is appropriate for reference knowledge and dangerous for patient
+facts.** For extraction from a specific document, the document is the ground truth and
+everything else is contamination — so RAG's default answer for this task is no.
+
+### Status
+All four parts answered. 92 tests passing. Every relative link across `results/` and
+`README.md` verified to resolve. No `@claude` comments outstanding.
+
+### Open
+- Candidate review of Parts 2, 3 and 4.
+- PDF export, including the appendix decision from session 7 (prompts now live only in
+  `src/`, so a reviewer reading the PDF alone would not see them).
+- Verification still outstanding from session 2: `Qwen3.5-27B` and
+  `Nemotron 3 Super 120B-A12B` model names, parameter counts, architectures and licences.
