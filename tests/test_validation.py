@@ -123,7 +123,7 @@ def test_pd_without_evidence_is_rejected():
     with pytest.raises(ValueError, match="requires at least one supporting_evidence"):
         ClinicalClassification(
             classification=Classification.PD,
-            confidence_score=80,
+            confidence_score=0.8,
             supporting_evidence=[],
             clinical_reasoning="It looks like progression.",
         )
@@ -195,7 +195,7 @@ def test_abstention_signature_is_recognised():
 def test_confident_non_pd_is_not_an_abstention():
     record = ClinicalClassification(
         classification=Classification.NON_PD,
-        confidence_score=95,
+        confidence_score=0.95,
         supporting_evidence=["no evidence of progression"],
         clinical_reasoning="Explicit denial of progression.",
     )

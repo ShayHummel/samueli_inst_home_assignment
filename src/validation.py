@@ -30,7 +30,7 @@ from enum import Enum
 
 from pydantic import ValidationError
 
-from .schema import Classification, ClinicalClassification
+from .schema import Classification, ClinicalClassification, RawClassification
 
 
 class FailureType(str, Enum):
@@ -335,14 +335,18 @@ def verify_output(
             failure_detail=f"expected a JSON object, got {type(payload).__name__}",
         )
 
+    # Stage 2 emits the intermediate contract (confidence 0-100); the report
+    # carries the output contract (0.0-1.0). The rescale happens once, here.
     try:
-        result = ClinicalClassification.model_validate(payload)
+        raw = RawClassification.model_validate(payload)
     except ValidationError as exc:
         return VerificationReport(
             ok=False,
             failure_type=FailureType.SCHEMA_VALIDATION_ERROR,
             failure_detail=str(exc),
         )
+
+    result = raw.to_output()
 
     expected = _coerce_expected_label(stage1_verdict)
     if expected is not None and result.classification is not expected:

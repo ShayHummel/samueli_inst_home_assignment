@@ -34,7 +34,7 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, roc_auc_score
 
 from .eda import load
-from .schema import ABSTENTION_CONFIDENCE_CEILING, CONFIDENCE_MAX, Classification
+from .schema import RAW_ABSTENTION_CONFIDENCE_CEILING, Classification
 from .validation import FailureTally, FailureType, verify_output
 
 #: Label encoding fixed by the assignment: 0 = Non-PD, 1 = PD.
@@ -171,7 +171,7 @@ def _draw_payload(text: str, rng: np.random.Generator) -> dict:
     if quote is None:
         return {
             "classification": Classification.NON_PD.value,
-            "confidence_score": float(rng.integers(5, int(ABSTENTION_CONFIDENCE_CEILING) + 1)),
+            "confidence_score": float(rng.integers(5, int(RAW_ABSTENTION_CONFIDENCE_CEILING) + 1)),
             "supporting_evidence": [],
             "clinical_reasoning": "The summary contains no assessable statement about "
             "disease status or treatment response.",
@@ -301,7 +301,7 @@ UNINFORMATIVE_SCORE = 0.5
 def probability_of_pd(
     predicted_label: int, confidence: float, *, is_abstention: bool = False
 ) -> float:
-    """Convert "confidence in my chosen label" (0-100) into P(PD) (0-1).
+    """Convert "confidence in my chosen label" into P(PD).
 
     The schema's ``confidence_score`` is confidence in whichever label the model
     picked, not the probability of the positive class. Passing it straight to
@@ -323,9 +323,9 @@ def probability_of_pd(
     """
     if is_abstention:
         return UNINFORMATIVE_SCORE
-    # Confidence is reported on 0-100; a probability must be on 0-1.
-    p_chosen = confidence / CONFIDENCE_MAX
-    return p_chosen if predicted_label == LABEL_PD else 1.0 - p_chosen
+    # `confidence` here is already on the output scale (0.0-1.0): the rescale from
+    # the model's 0-100 happens once, in RawClassification.to_output.
+    return confidence if predicted_label == LABEL_PD else 1.0 - confidence
 
 
 # --------------------------------------------------------------------------- #

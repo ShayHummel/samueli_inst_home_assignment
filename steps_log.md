@@ -1091,3 +1091,47 @@ roughly 370 words of duplication went. 97 tests still pass; no code touched this
 
 Recorded as a standing preference in memory so future documents get the sweep before handover
 rather than after review.
+
+### Comment round 12 — two confidence scales with one boundary
+
+`@claude` comment: *"the output from the pipeline must be the required json schema
+(confidence score: 0.0-1.0). However, the output from intermediate stages may be different, in
+our case confidence score: 0-100."*
+
+This is the reconciliation of the tension flagged in round 10, and it removes the deviation
+entirely rather than documenting it. Implemented as **two Pydantic contracts with a single
+crossing point**:
+
+| | Contract | Confidence | Abstention ceiling |
+| --- | --- | --- | --- |
+| Stage 2 emits | `RawClassification` | 0–100 integer | 20 |
+| Pipeline returns | `ClinicalClassification` | 0.0–1.0 | 0.2 |
+
+`RawClassification.to_output()` is the only place the scale changes, so a 0–100 value cannot
+reach a consumer expecting a probability. `verify_output` validates stage 2's output against
+the raw contract and returns the output contract, so the boundary sits inside the validator
+and no caller has to remember it. `probability_of_pd` reverted to taking a 0.0–1.0 value —
+its `/100` is gone, because the rescale now happens upstream.
+
+Shared fields and validators live in a `_ClassificationBase`; only the confidence bound and
+the abstention ceiling differ. The ceiling is defined once on the output scale and the
+intermediate one derived (`0.2 * 100`), rather than written twice.
+
+**One real bug found while implementing this.** The per-scale ceiling was first written as
+`_abstention_ceiling: float = ...` on a Pydantic model. A leading-underscore annotated
+attribute becomes a `ModelPrivateAttr`, not the float it appears to be, so `is_abstention`
+raised `TypeError: '<=' not supported between instances of 'float' and 'ModelPrivateAttr'`.
+Fixed with `ClassVar[float]`, and the reason is recorded in a comment since the failure mode
+is silent at definition time and only surfaces at use.
+
+**Three tests pin the arrangement**, because the ambiguity is the risk:
+- the pipeline's output is on 0.0–1.0 even though stage 2 emitted 87;
+- a stage-2 value of `0.87` means 0.87% and becomes `0.0087` — **the validator does not guess
+  which scale a small number was meant to be on**, since guessing would make a formatting slip
+  indistinguishable from a genuine low-confidence answer;
+- stage 2's prompt actually contains "0 to 100" and "do not rescale".
+
+2.3 rewritten around this: the assignment's schema stated as *the* output contract with no
+deviation, then a "Two scales, one boundary" subsection. All "deviates from the assignment"
+language removed from the repository. Metrics are unchanged, as the rescale is
+order-preserving. 97 → 100 tests.

@@ -18,7 +18,7 @@ from src.evaluate import (
     probability_of_pd,
     run_pipeline,
 )
-from src.schema import ClinicalClassification
+from src.schema import ClinicalClassification, RawClassification
 
 NOTE_WITH_STATUS = (
     "IMPRESSION: Restaging CT demonstrates no evidence of progression. The patient "
@@ -78,9 +78,14 @@ def test_missing_rate_injects_nan_ground_truth():
 
 
 def test_call_local_llm_returns_a_schema_valid_dict():
+    """The mock simulates the *model*, so it speaks the intermediate 0-100 contract."""
     payload = call_local_llm(NOTE_WITH_STATUS)
     assert isinstance(payload, dict)
-    ClinicalClassification.model_validate(payload)  # raises if off-contract
+    raw = RawClassification.model_validate(payload)  # raises if off-contract
+    # ...and must convert cleanly to the assignment's 0.0-1.0 output contract.
+    out = raw.to_output()
+    assert 0.0 <= out.confidence_score <= 1.0
+    ClinicalClassification.model_validate(out.model_dump())
 
 
 def test_mock_is_deterministic_for_the_same_note():
@@ -91,9 +96,10 @@ def test_mock_is_deterministic_for_the_same_note():
 
 def test_note_without_status_vocabulary_produces_an_abstention():
     payload = call_local_llm(NOTE_WITHOUT_STATUS)
-    record = ClinicalClassification.model_validate(payload)
-    assert record.is_abstention
-    assert record.supporting_evidence == []
+    raw = RawClassification.model_validate(payload)
+    assert raw.is_abstention, "abstention must be recognised on the 0-100 scale"
+    assert raw.to_output().is_abstention, "and survive the rescale to 0.0-1.0"
+    assert raw.supporting_evidence == []
 
 
 def test_evidence_quotes_are_real_substrings_of_the_note():
@@ -117,18 +123,18 @@ def test_messy_mock_produces_more_than_one_shape():
 
 
 def test_pd_confidence_maps_directly():
-    """Confidence arrives on 0-100; P(PD) must come back on 0-1."""
-    assert probability_of_pd(LABEL_PD, 90) == pytest.approx(0.9)
+    """Input is already on the output scale — the rescale happened in to_output."""
+    assert probability_of_pd(LABEL_PD, 0.9) == pytest.approx(0.9)
 
 
 def test_non_pd_confidence_is_inverted():
-    assert probability_of_pd(LABEL_NON_PD, 90) == pytest.approx(0.1)
+    assert probability_of_pd(LABEL_NON_PD, 0.9) == pytest.approx(0.1)
 
 
 def test_abstention_is_scored_as_uninformative():
-    """The bug this guards: 1 - 0.10 = 0.9 would score "no information" as "likely PD"."""
-    naive = 1.0 - (10 / 100)
-    actual = probability_of_pd(LABEL_NON_PD, 10, is_abstention=True)
+    """The bug this guards: 1 - 0.1 = 0.9 would score "no information" as "likely PD"."""
+    naive = 1.0 - 0.1
+    actual = probability_of_pd(LABEL_NON_PD, 0.1, is_abstention=True)
     assert actual == pytest.approx(UNINFORMATIVE_SCORE)
     assert actual != pytest.approx(naive)
 

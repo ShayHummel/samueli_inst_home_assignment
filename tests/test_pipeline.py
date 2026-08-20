@@ -458,3 +458,50 @@ def test_quote_from_a_multiline_note_still_grounds():
     )
     assert result, f"grounding failed: {result.failure_type} {result.failure_detail}"
     assert result.classification.supporting_evidence == [quote]
+
+
+# --------------------------------------------------------------------------- #
+# The two confidence scales, and the single boundary between them
+# --------------------------------------------------------------------------- #
+
+
+def test_pipeline_output_is_on_the_assignment_scale_though_stage2_emits_0_100():
+    """The intermediate 0-100 scale must never leak into the pipeline's output.
+
+    Stage 2 is prompted for a 0-100 integer because LLMs emit coarse percentages
+    reliably. The assignment's schema fixes the *output* at 0.0-1.0. The rescale
+    happens once, in RawClassification.to_output, so a 0-100 value cannot reach a
+    consumer expecting a probability.
+    """
+    result = classify_note(
+        NOTE_PD,
+        reasoning_llm=ScriptedLlm(stage1_text(confidence="87")),
+        structuring_llm=ScriptedLlm(stage2_json(confidence="87")),
+    )
+    assert result
+    assert result.classification.confidence_score == pytest.approx(0.87)
+    assert 0.0 <= result.classification.confidence_score <= 1.0
+
+
+def test_a_0_to_1_confidence_from_stage2_is_not_silently_rescaled():
+    """0.87 on the 0-100 contract means 0.87%, and must survive as 0.0087.
+
+    Asserted so the ambiguity is a documented decision rather than an accident: the
+    intermediate contract is unambiguous, and the validator does not guess which
+    scale a small number was meant to be on.
+    """
+    result = classify_note(
+        NOTE_PD,
+        reasoning_llm=ScriptedLlm(stage1_text(confidence="0.87")),
+        structuring_llm=ScriptedLlm(stage2_json(confidence="0.87")),
+    )
+    assert result
+    assert result.classification.confidence_score == pytest.approx(0.0087)
+
+
+def test_stage2_prompt_asks_for_the_0_to_100_scale():
+    structurer = ScriptedLlm(stage2_json())
+    classify_note(NOTE_PD, reasoning_llm=ScriptedLlm(stage1_text()), structuring_llm=structurer)
+    system_msg = structurer.calls[0][0].content
+    assert "0 to 100" in system_msg
+    assert "do not rescale" in system_msg.lower()

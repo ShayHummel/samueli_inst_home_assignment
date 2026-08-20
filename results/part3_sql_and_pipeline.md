@@ -172,7 +172,7 @@ case here, not an edge case.
 | Step | Function | Notes |
 | --- | --- | --- |
 | Random ground truth | `add_random_labels` | Seeded; `pd_prevalence=0.05` to match Q1.2c, which the EDA found realistic for this corpus. `missing_rate` injects NaN labels so the 3.3 path is exercised, not just described. |
-| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. Confidence is drawn on the **0–100** scale used from Part 2.2 onward. |
+| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Parse and validate | `verify_output` (Part 2) | Reuses the Part-2 validator rather than reimplementing it. |
 | Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC, bootstrap CIs, coverage. |

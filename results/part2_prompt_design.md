@@ -234,12 +234,13 @@ answer. A neutrally-framed self-check tends to agree with itself.
   original argument, a reviewer tends to ratify it instead of testing it independently.
 - **Confidence is instructed, not assumed calibrated.** Per Q1.2c the self-reported number is
   not a probability; it is used as a ranking signal and as the abstention trigger, and is
-  Platt-calibrated before being read as one. It is instructed on a 0–100 integer scale — see
-  2.3 for why, and for how that scale is handled at the calibration boundary.
+  Platt-calibrated before being read as one. The prompts ask for it on a 0–100 integer scale
+  while the pipeline's output stays on the assignment's 0.0–1.0 — see 2.3 for why, and for
+  where the single rescale happens.
 
 ## 2.3 — Strict JSON output schema
 
-The schema as the assignment states it:
+The pipeline's output, exactly as the assignment specifies it:
 
 ```json
 {
@@ -250,31 +251,6 @@ The schema as the assignment states it:
 }
 ```
 
-As implemented, with **one deliberate deviation** — `confidence_score` is a 0–100 integer
-rather than a 0.0–1.0 float:
-
-```json
-{
-  "classification":      "PD" | "Non-PD",
-  "confidence_score":    0-100,
-  "supporting_evidence": ["<exact quote from the text>", "..."],
-  "clinical_reasoning":  "<brief explanation of the decision>"
-}
-```
-
-**Why deviate.** LLMs emit coarse integer percentages far more consistently than fine-grained
-floats, which cluster on a handful of round values (0.9, 0.95) and imply a resolution the model
-does not possess. The stage-1 prompt is explicit — *"CONFIDENCE must be an INTEGER from 0 to
-100 … Do not write a decimal such as 0.87; write 87"* — and stage 2 copies the number without
-rescaling. The deviation is confined to one field and reversible in one line: change the bound
-in `src/schema.py`.
-
-**How the scale is handled downstream.** `confidence_score` is confidence in *whichever* label
-was chosen, so P(PD) is `score/100` for a PD prediction and `1 − score/100` for a Non-PD one.
-That division lives in `probability_of_pd`, so a 0–100 value never reaches a metric expecting a
-probability. Abstentions bypass the mapping entirely — Part 3.2 records what happened when they
-did not.
-
 Implemented as a Pydantic v2 model in [`src/schema.py`](../src/schema.py). Two rules are
 enforced in the model rather than asked for in the prompt, on the principle that **a prompt
 can only ask while a validator can refuse**:
@@ -283,15 +259,42 @@ can only ask while a validator can refuse**:
   Silently dropping unknown keys would hide that the model went off-contract.
 - **A `PD` verdict with an empty `supporting_evidence` array is rejected.** Asserting that a
   patient's cancer is progressing while quoting nothing from the note is precisely the
-  fabrication that Q1.2e's faithfulness check exists to catch, so it must never validate. 
+  fabrication that Q1.2e's faithfulness check exists to catch, so it must never validate.
 
 `classification` is an `Enum`, so only the two exact strings parse — a model answering
 "Progressive Disease" or "pd" fails loudly instead of being coerced.
 
 The mirror case, `Non-PD` with no evidence, is *legitimate and meaningful*: it is the D13
-abstention signature. `ClinicalClassification.is_abstention` recognises it (Non-PD + empty
-evidence + confidence ≤ 20) so the pipeline can route those records to a clinician rather
-than report them as negative findings.
+abstention signature, recognised by `is_abstention` so the pipeline can route those records to
+a clinician rather than report them as negative findings.
+
+### Two scales, one boundary
+
+The **output** contract above is fixed. The **intermediate** stages use a 0–100 integer scale
+instead, because LLMs emit coarse percentages far more consistently than fine-grained floats:
+asked for a decimal they cluster on a handful of round values (0.9, 0.95) and imply a
+resolution they do not have. So stage 1 is told *"CONFIDENCE must be an INTEGER from 0 to 100 …
+Do not write a decimal such as 0.87; write 87"*, and stage 2 copies that number without
+rescaling.
+
+| | Contract | Confidence | Abstention ceiling |
+| --- | --- | --- | --- |
+| Stage 2 emits | `RawClassification` | 0–100 integer | 20 |
+| Pipeline returns | `ClinicalClassification` | 0.0–1.0 | 0.2 |
+
+`RawClassification.to_output()` is the **only** crossing point, so the rescale happens once and
+a 0–100 value cannot reach a consumer expecting a probability — the bug class that drove
+ROC-AUC to 0.079 in an earlier revision of Part 3.2. Both scales carry the same validation
+rules; only the bound differs.
+
+Two consequences worth stating, both pinned by tests:
+
+- **The intermediate contract is unambiguous, and the validator does not guess.** A stage-2
+  output of `0.87` means 0.87%, and becomes `0.0087` — it is not silently interpreted as a
+  fraction. Guessing which scale a small number was meant to be on would make a formatting slip
+  indistinguishable from a genuine low-confidence answer.
+- **Nothing downstream handles the rescale.** `probability_of_pd` in Part 3.2 receives a value
+  already on the output scale, so no consumer needs to know the intermediate scale exists.
 
 ## 2.4 — Forcing schema adherence
 
