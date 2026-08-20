@@ -10,7 +10,7 @@ if needed).
 
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
-uv run pytest -q                         # 108 tests
+uv run pytest -q                         # 110 tests
 uv run ruff check .                      # lint: unused imports, undeclared packages
 
 uv run samueli-eda                       # EDA over hw_docs/Oncology.csv
@@ -62,7 +62,7 @@ sql/
   schema.sql       DDL for the Task 3.1 clinical schema
   queries/         one file per query, each with its assumptions in a header
 
-tests/             108 tests
+tests/             110 tests
 hw_docs/           the assignment PDF and Oncology.csv
 ```
 

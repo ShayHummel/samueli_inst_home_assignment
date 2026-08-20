@@ -96,6 +96,7 @@ constraint is the reason the query is needed.
 | 4 | Average diagnoses per visit, by department, 2025 | [`04_avg_diagnoses_per_visit_2025.sql`](../sql/queries/04_avg_diagnoses_per_visit_2025.sql) |
 | 5 | Exactly one row per visit: the most recent note | [`05_latest_note_per_visit.sql`](../sql/queries/05_latest_note_per_visit.sql) |
 
+@claude: I want you to make this section much shorter. Most of the explanation should be in the sql files IMHO.
 Each file carries its own assumptions in a header comment. The ones that change the answer
 rather than merely restating it:
 
@@ -119,7 +120,15 @@ patient silently loses their first visit. It raises no error, which is what make
 test rather than a comment: `test_moving_the_lateral_correlation_to_on_silently_loses_rows`
 asserts the breakage, and `test_distinct_on_and_lateral_formulations_agree` asserts the two
 correct forms are equivalent. `DISTINCT ON` is the shipped version because the join predicate
-sits where a reader expects it and it matches the idiom already used in query 5; `LATERAL` is
+sits where a reader expects it and it matches the idiom already used in query 5. Note the
+query contains **two unrelated uses of the word `ON`** — `DISTINCT ON (v.patient_id)` names
+PostgreSQL's deduplication operator and takes a list of *expressions*, while
+`ON first_visit.patient_id = p.patient_id` is the join condition; the file calls this out
+since the collision is a genuine reading hazard. `DISTINCT ON` also constrains the
+`ORDER BY`: its leading expressions must match, and PostgreSQL refuses the query otherwise,
+so that half cannot ship broken. The half the parser does *not* protect is direction —
+`visit_date DESC` would silently return each patient's *latest* visit — so the ordering is
+pinned by test. `LATERAL` is
 the optimisation to reach for if this ever runs hot on a large `visits` table, since it probes
 an index once per patient instead of sorting every visit.
 
@@ -145,7 +154,7 @@ PostgreSQL form, with a portable `ROW_NUMBER()` equivalent in the file's footer.
 
 ### Unit tests
 
-[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 22 tests, run against a real
+[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 24 tests, run against a real
 PostgreSQL cluster. The tests target boundaries rather than happy paths, because that is
 where a plausible-looking query is wrong: visits on 31 December vs 1 January, a patient with
 no visits, a visit with no diagnoses, a prescription with a NULL `visit_id`, same-day visit

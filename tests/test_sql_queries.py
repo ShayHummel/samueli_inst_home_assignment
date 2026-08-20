@@ -422,3 +422,49 @@ def test_moving_the_lateral_correlation_to_on_silently_loses_rows(
     assert broken[1] == dt.date(2022, 1, 15)
     # ...and patient 2's visit is silently lost.
     assert broken[2] is None
+
+
+def test_distinct_on_requires_matching_leading_order_by(db):
+    """PostgreSQL rejects a DISTINCT ON whose leading ORDER BY does not match it.
+
+    Documents why `ORDER BY v.patient_id, ...` starts where it does in query 2:
+    it is not stylistic, it is required. Unlike the LATERAL correlation trap, this
+    mistake cannot ship silently — the parser refuses it.
+    """
+    import psycopg
+
+    with (
+        db.cursor() as cur,
+        pytest.raises(psycopg.errors.InvalidColumnReference, match="must match initial ORDER BY"),
+    ):
+        cur.execute(
+            "SELECT DISTINCT ON (v.patient_id) v.patient_id, v.visit_date "
+            "FROM visits AS v ORDER BY v.visit_date, v.visit_id"
+        )
+    db.rollback()  # the failed statement aborted the transaction
+
+
+def test_descending_visit_date_would_return_the_latest_visit(db, seed):
+    """The part the parser does NOT protect: ORDER BY direction picks first vs last.
+
+    Query 2 sorts visit_date ascending so "first row per patient" means *earliest*.
+    Flipping to DESC is perfectly valid SQL and silently answers the opposite
+    question, so the direction is pinned here.
+    """
+    import psycopg.rows
+
+    seed("patients", "patient_id", [(1,)])
+    seed(
+        "visits",
+        "visit_id, patient_id, visit_date, department",
+        [(10, 1, "2022-01-15", "Neurology"), (11, 1, "2024-08-09", "Oncology")],
+    )
+    template = (
+        "SELECT DISTINCT ON (v.patient_id) v.patient_id, v.visit_date, v.department "
+        "FROM visits AS v ORDER BY v.patient_id, v.visit_date {direction}, v.visit_id"
+    )
+    with db.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        cur.execute(template.format(direction="ASC"))
+        assert cur.fetchone()["department"] == "Neurology"   # earliest — what we want
+        cur.execute(template.format(direction="DESC"))
+        assert cur.fetchone()["department"] == "Oncology"    # latest — the silent inversion

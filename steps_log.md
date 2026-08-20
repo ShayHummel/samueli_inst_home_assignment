@@ -1360,3 +1360,36 @@ The `LATERAL` form is kept alongside as documented alternative with the trade-of
   (they happen to own the globally earliest visit) and patient 2's visit is lost.
 
 20 → 22 SQL tests, 108 total. Part 3 write-up and README updated.
+
+### Comment round 19 — the two meanings of "ON" in query 2
+
+`@claude` comment: *"is the ON in this line correct?"* on `SELECT DISTINCT ON (v.patient_id)`.
+
+Yes — and the confusion is legitimate, because **query 2 now contains two unrelated uses of the
+word `ON`** and the previous round put them there. Worth naming rather than defending:
+- `SELECT DISTINCT ON (v.patient_id)` — part of the *name* of PostgreSQL's `DISTINCT ON`
+  operator. It takes a list of **expressions** to deduplicate by, not a predicate: "keep only
+  the first row of each group having the same `v.patient_id`". Verified it accepts an arbitrary
+  expression (`DISTINCT ON (v.patient_id = 1)` groups by that boolean), which confirms it is not
+  a join condition.
+- `ON first_visit.patient_id = p.patient_id` — an ordinary join condition.
+
+**One constraint is enforced, one is not** — a distinction worth having in the file:
+- `DISTINCT ON` requires the **leading** `ORDER BY` expressions to match its own. Verified:
+  removing `v.patient_id` from the `ORDER BY` raises
+  `SELECT DISTINCT ON expressions must match initial ORDER BY expressions`. So that half cannot
+  ship silently broken, unlike the LATERAL correlation trap from round 18.
+- The `ORDER BY` **direction** is unprotected. `visit_date DESC` is perfectly valid SQL and
+  silently answers the opposite question — each patient's *latest* visit. That is the real
+  hazard here, so it is asserted by test.
+
+The header comment now carries a `CAUTION` block distinguishing the two `ON`s, annotates all
+three `ORDER BY` positions with why each is load-bearing, and notes that `v.patient_id` is
+selected as well as deduplicated on because the outer join needs it as its right-hand key.
+
+Two tests added: `test_distinct_on_requires_matching_leading_order_by` (documents the parser
+constraint executably) and `test_descending_visit_date_would_return_the_latest_visit` (pins the
+direction the parser will not check). 22 → 24 SQL tests, 110 total.
+
+Also fixed a ruff `SIM117` introduced by the first test — nested `with` statements collapsed
+into one.
