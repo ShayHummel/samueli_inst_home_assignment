@@ -1393,3 +1393,41 @@ direction the parser will not check). 22 → 24 SQL tests, 110 total.
 
 Also fixed a ruff `SIM117` introduced by the first test — nested `with` statements collapsed
 into one.
+
+### Comment round 20 — cut the Part 3 SQL prose, in both places
+
+`@claude` comment: *"I want you to make this section much shorter. Most of the explanation
+should be in the sql files IMHO. Make sure things do not repeat."* Followed by: *"Also the
+documentation in the sql scripts should be much more concise."*
+
+Both correct, and the second is the sharper of the two — the SQL headers had grown worse than
+the prose they were duplicating.
+
+**`results/part3_sql_and_pipeline.md`, 920 → 433 words in that section.** The five per-query
+prose blocks were folded into the existing table as a fourth column, "The decision that changes
+the answer" — one line each. That is the right division of labour: the answers document is the
+index, each file's header is the detail. Also trimmed the ER-diagram note, which restated query
+3's join rationale that the query file already owns.
+
+One thing is *deliberately* still repeated: query 3's over-report. It changes how the output
+should be read, so a reviewer looking only at the answers document needs it. Cut from five lines
+to two and labelled as a deliberate repeat rather than left looking accidental.
+
+**SQL headers, 160 → 80 comment lines.** Per file: 01 14→7, **02 84→32**, 03 20→14, 04 14→9,
+05 28→18.
+
+Query 2 was the offender at 84 comment lines against 18 of SQL — a 4.7:1 ratio, accumulated
+across rounds 18 and 19 as each answered a question by *adding* rather than by replacing. What
+went was narrative: "verified on a real cluster" (the test is the proof, so the sentence was
+doing nothing), the restated worked example of the broken form, and the paragraph re-arguing why
+`DISTINCT ON` is the primary. What stayed is one line per decision plus the two genuine hazards
+— the two meanings of `ON`, and that the `LATERAL` correlation fails *silently* if moved.
+
+Nothing was lost, because the reasoning already exists in a more durable form: 24 SQL tests,
+four of which pin exactly these decisions.
+
+**Process note:** answering a review comment by appending is how a 14-line header becomes an
+84-line one. The prompt-file and answers-document rounds hit the same pattern earlier. Worth
+replacing rather than adding when a comment is really saying "this is unclear".
+
+Verified after: 110 tests pass, ruff clean.

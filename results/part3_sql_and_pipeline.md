@@ -73,9 +73,7 @@ it lets a prescription exist without an encounter (a phone renewal, a transferre
 medication list) by leaving `visit_id` NULL. It also creates a consistency hazard the
 schema cannot enforce: nothing stops `medications.patient_id` disagreeing with
 `visits.patient_id` for the same row. In production that wants either a composite foreign
-key or a `CHECK` trigger. **It changes query 3**: "never prescribed" must be evaluated
-through `medications.patient_id`, because joining via `visit_id` would silently miss every
-prescription with a NULL visit.
+key or a `CHECK` trigger. It is also what forces query 3's join key.
 
 **2. Diagnoses and notes hang off the *visit*, not the patient.** So any patient-level
 question about diagnoses has to travel `patients → visits → diagnoses`. A patient with no
@@ -88,89 +86,40 @@ constraint is the reason the query is needed.
 
 ### The queries
 
-| # | Question | File |
-| --- | --- | --- |
-| 1 | Distinct patients with ≥1 Neurology visit in 2025 | [`01_neurology_patients_2025.sql`](../sql/queries/01_neurology_patients_2025.sql) |
-| 2 | Each patient's first-ever visit date and its department | [`02_first_visit_per_patient.sql`](../sql/queries/02_first_visit_per_patient.sql) |
-| 3 | G20 patients never prescribed a levodopa-containing drug | [`03_parkinsons_without_levodopa.sql`](../sql/queries/03_parkinsons_without_levodopa.sql) |
-| 4 | Average diagnoses per visit, by department, 2025 | [`04_avg_diagnoses_per_visit_2025.sql`](../sql/queries/04_avg_diagnoses_per_visit_2025.sql) |
-| 5 | Exactly one row per visit: the most recent note | [`05_latest_note_per_visit.sql`](../sql/queries/05_latest_note_per_visit.sql) |
+| # | Question | File | The decision that changes the answer |
+| --- | --- | --- | --- |
+| 1 | Distinct patients with ≥1 Neurology visit in 2025 | [`01_…`](../sql/queries/01_neurology_patients_2025.sql) | Half-open date range; department matched exactly, since `ILIKE '%neurolog%'` also catches *Neurosurgery* |
+| 2 | Each patient's first-ever visit date and its department | [`02_…`](../sql/queries/02_first_visit_per_patient.sql) | `LEFT JOIN` so patients with no visits survive; ties broken on `visit_id` for determinism |
+| 3 | G20 patients never prescribed a levodopa-containing drug | [`03_…`](../sql/queries/03_parkinsons_without_levodopa.sql) | `LIKE 'G20%'` to catch the ICD-10-CM FY2024 subcodes; joined via `medications.patient_id` so prescriptions with a NULL `visit_id` still count |
+| 4 | Average diagnoses per visit, by department, 2025 | [`04_…`](../sql/queries/04_avg_diagnoses_per_visit_2025.sql) | `LEFT JOIN` so zero-diagnosis visits stay in the denominator; `::numeric` so 3/2 is not 1 |
+| 5 | Exactly one row per visit: the most recent note | [`05_…`](../sql/queries/05_latest_note_per_visit.sql) | Tie-break on `note_id`, because identical timestamps are the signature of the double-submit that created the duplicates |
 
-@claude: I want you to make this section much shorter. Most of the explanation should be in the sql files IMHO.
-Each file carries its own assumptions in a header comment. The ones that change the answer
-rather than merely restating it:
+Each file's header carries the full assumptions, the rejected alternatives and the reasoning —
+one place to read, one place to change.
 
-**Query 1 — half-open date range.** `>= '2025-01-01' AND < '2026-01-01'` rather than
-`BETWEEN '2025-01-01' AND '2025-12-31'`. The `BETWEEN` form is correct for a `date` column
-but silently drops 31 December after midnight if the column is ever widened to a timestamp,
-and the half-open form stays index-sargable. Department is matched exactly, because
-`ILIKE '%neurolog%'` would also capture *Neurosurgery*.
-
-**Query 2 — "every patient" is read literally.** A patient with no visits appears with
-NULLs, via `DISTINCT ON` inside a `LEFT JOIN`. A `GROUP BY` over `visits` would silently drop
-them and quietly answer a different question: "every patient *who has visited*". Ties on
-`visit_date` break to the lower `visit_id`, so the result is deterministic — without a
-tie-break, two visits on one day make the returned department arbitrary.
-
-An equivalent `LEFT JOIN LATERAL … LIMIT 1` formulation is documented beside it, together with
-the reason its correlation predicate must sit in the subquery's `WHERE` rather than in the `ON`
-clause. Moved to `ON`, the subquery stops being correlated and returns **one row globally** —
-the earliest visit in the whole table — which is then matched per patient, so every other
-patient silently loses their first visit. It raises no error, which is what makes it worth a
-test rather than a comment: `test_moving_the_lateral_correlation_to_on_silently_loses_rows`
-asserts the breakage, and `test_distinct_on_and_lateral_formulations_agree` asserts the two
-correct forms are equivalent. `DISTINCT ON` is the shipped version because the join predicate
-sits where a reader expects it and it matches the idiom already used in query 5. Note the
-query contains **two unrelated uses of the word `ON`** — `DISTINCT ON (v.patient_id)` names
-PostgreSQL's deduplication operator and takes a list of *expressions*, while
-`ON first_visit.patient_id = p.patient_id` is the join condition; the file calls this out
-since the collision is a genuine reading hazard. `DISTINCT ON` also constrains the
-`ORDER BY`: its leading expressions must match, and PostgreSQL refuses the query otherwise,
-so that half cannot ship broken. The half the parser does *not* protect is direction —
-`visit_date DESC` would silently return each patient's *latest* visit — so the ordering is
-pinned by test. `LATERAL` is
-the optimisation to reach for if this ever runs hot on a large `visits` table, since it probes
-an index once per patient instead of sorting every visit.
-
-**Query 3 — `LIKE 'G20%'`, not `= 'G20'`.** ICD-10-CM split G20 into subcodes (G20.A1,
-G20.B2, …) from FY2024, so an exact match silently misses patients coded under the newer
-scheme. No sibling code shares the prefix, so this cannot over-match. *Stated limitation:*
-`ILIKE '%levodopa%'` catches `Carbidopa-Levodopa` and `levodopa/benserazide` but **not**
-brand names — `Sinemet`, `Madopar`, `Rytary`. The query therefore **over-reports**: a
-patient on Sinemet appears untreated. A production version would resolve `drug_name`
-against RxNorm ingredients or ATC N04BA instead of matching substrings. There is a test
-pinning this behaviour, so switching to terminology matching will fail it and force the
-note to be updated rather than left stale.
-
-**Query 4 — visits with zero diagnoses stay in the denominator.** This is the whole
-question. An `INNER JOIN` computes "diagnoses per visit *that had a diagnosis*", inflating
-every department's average. The `LEFT JOIN` keeps the visit and contributes 0 to the
-numerator. The `::numeric` cast prevents integer division truncating 3/2 to 1.
-
-**Query 5 — ties on `created_at` break to the highest `note_id`.** Not a pedantic detail:
-duplicate rows carrying *identical* timestamps is precisely the shape of a double-submit
-bug, so ties are likely rather than hypothetical. `DISTINCT ON` is used as the idiomatic
-PostgreSQL form, with a portable `ROW_NUMBER()` equivalent in the file's footer.
+One item is repeated here rather than left in its file, because it changes how the *output*
+should be read: **query 3 over-reports** — `ILIKE '%levodopa%'` misses brand names, so a treated
+patient can appear untreated.
 
 ### Unit tests
 
-[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 24 tests, run against a real
-PostgreSQL cluster. The tests target boundaries rather than happy paths, because that is
-where a plausible-looking query is wrong: visits on 31 December vs 1 January, a patient with
-no visits, a visit with no diagnoses, a prescription with a NULL `visit_id`, same-day visit
-ties, identical note timestamps, and `Neurosurgery` not matching `Neurology`.
+[`tests/test_sql_queries.py`](../tests/test_sql_queries.py) — 24 tests against a real
+PostgreSQL cluster, aimed at boundaries rather than happy paths, because that is where a
+plausible-looking query is wrong: 31 December vs 1 January, a patient with no visits, a visit
+with no diagnoses, a prescription with a NULL `visit_id`, same-day visit ties, identical note
+timestamps, and `Neurosurgery` not matching `Neurology`.
 
-Two tests exist to pin decisions rather than to check correctness:
-`test_integer_division_does_not_truncate` (3/2 must be 1.5) and
-`test_known_limitation_brand_names_are_missed`, which asserts the documented over-report so
-it cannot drift silently.
+Four pin a decision rather than check correctness, so it cannot drift silently:
+integer division must not truncate; the levodopa over-report above is asserted as current
+behaviour; and two guard query 2 — that its `DISTINCT ON` and `LATERAL` forms agree, and that
+moving `LATERAL`'s correlation into the `ON` clause silently loses rows.
 
-**How they run.** [`tests/conftest.py`](../tests/conftest.py) starts a throwaway cluster
-with `initdb` in a temp directory, on a Unix socket only — no Docker, no port collisions,
-and no pre-existing server required. Each test gets the schema applied inside a transaction
-that is rolled back afterwards; since DDL is transactional in PostgreSQL, isolation is free.
-If the PostgreSQL binaries are not on `PATH`, these tests **skip with a clear reason**
-rather than failing, so the rest of the suite stays green on a machine without PostgreSQL.
+**How they run.** [`tests/conftest.py`](../tests/conftest.py) starts a throwaway cluster with
+`initdb` in a temp directory, on a Unix socket only — no Docker, no port collisions, and no
+pre-existing server required. Each test gets the schema applied inside a transaction that is
+rolled back afterwards; since DDL is transactional in PostgreSQL, isolation is free. If the
+PostgreSQL binaries are not on `PATH`, these tests **skip with a clear reason** rather than
+failing.
 
 ```
 uv run pytest tests/test_sql_queries.py -v

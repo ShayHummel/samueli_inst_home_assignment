@@ -1,26 +1,21 @@
--- 3.1.4  Per department, compute the average number of diagnoses recorded per
---        visit in 2025.
+-- 3.1.4  Per department, the average number of diagnoses recorded per visit in 2025.
 --
--- Assumptions
---   * Visits with ZERO diagnoses are part of the denominator. This is the crux of
---     the question: an INNER JOIN would drop them, inflating every average, since
---     it would compute "diagnoses per visit that had a diagnosis". The LEFT JOIN
---     keeps the visit and contributes 0 to the numerator.
---   * A visit is attributed to the department recorded on the visit row.
---   * 2025 filters on visit_date, matching query 1.
+-- The LEFT JOIN is the whole question: visits with ZERO diagnoses must stay in the
+-- denominator. An INNER JOIN computes "diagnoses per visit that had a diagnosis" and
+-- inflates every department's average. COUNT(d.diagnosis_id) ignores the NULL from a
+-- join miss, while COUNT(DISTINCT v.visit_id) still counts the visit.
 --
--- COUNT(d.diagnosis_id) counts non-NULL values, so a LEFT JOIN miss adds nothing
--- to the numerator while COUNT(DISTINCT v.visit_id) still counts the visit. The
--- ::numeric cast avoids integer division silently truncating 3/2 to 1.
+-- The ::numeric cast stops integer division truncating 3/2 to 1.
+-- Date range matches query 1.
 
 SELECT v.department,
-       COUNT(DISTINCT v.visit_id)                          AS visits,
-       COUNT(d.diagnosis_id)                               AS diagnoses,
+       COUNT(DISTINCT v.visit_id) AS visits,
+       COUNT(d.diagnosis_id)      AS diagnoses,
        ROUND(
            COUNT(d.diagnosis_id)::numeric
            / NULLIF(COUNT(DISTINCT v.visit_id), 0),
            3
-       )                                                   AS avg_diagnoses_per_visit
+       )                          AS avg_diagnoses_per_visit
 FROM visits AS v
 LEFT JOIN diagnoses AS d ON d.visit_id = v.visit_id
 WHERE v.visit_date >= DATE '2025-01-01'

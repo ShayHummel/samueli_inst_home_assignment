@@ -1,23 +1,17 @@
--- 3.1.3  Find patients with a Parkinson's diagnosis (ICD-10 G20) who were never
---        prescribed a levodopa-containing drug.
+-- 3.1.3  Patients with a Parkinson's diagnosis (ICD-10 G20) who were never prescribed
+--        a levodopa-containing drug.
 --
 -- Assumptions
---   * `LIKE 'G20%'` rather than `= 'G20'`. ICD-10-CM expanded G20 into subcodes
---     (G20.A1, G20.B2, ...) from FY2024, so an exact match silently misses
---     patients coded under the newer scheme. The prefix match accepts both.
---     Note G20 has no sibling codes sharing the prefix, so this cannot over-match.
---   * "never prescribed" is evaluated over the patient's whole medication record,
---     not just visits where G20 was coded -- a levodopa course predating the
---     diagnosis still means the patient was prescribed it.
---   * The link is `medications.patient_id`, not `medications.visit_id`, so
---     prescriptions with a NULL visit_id (renewals outside an encounter) still count.
+--   * LIKE 'G20%' rather than = 'G20': ICD-10-CM added subcodes (G20.A1, G20.B2, ...)
+--     in FY2024. No sibling code shares the prefix, so this cannot over-match.
+--   * "Never" spans the whole medication record, not only G20-coded visits.
+--   * Joined via medications.patient_id, so prescriptions with a NULL visit_id count.
 --
--- Known limitation, stated rather than hidden: '%levodopa%' is a string match on
--- the drug name. It catches 'Levodopa', 'carbidopa-levodopa' and
--- 'levodopa/benserazide', but NOT brand names such as 'Sinemet', 'Madopar' or
--- 'Rytary'. A production version would resolve drug_name against a terminology
--- (RxNorm ingredient, or ATC N04BA) instead of matching substrings. As written,
--- the query over-reports: a patient on Sinemet appears as never treated.
+-- Known limitation: '%levodopa%' matches 'Carbidopa-Levodopa' and
+-- 'levodopa/benserazide' but NOT brand names (Sinemet, Madopar, Rytary), so the query
+-- OVER-reports -- a treated patient can appear untreated. Production would resolve
+-- drug_name against RxNorm ingredients or ATC N04BA. A test pins the current behaviour
+-- so a future switch cannot leave this note stale.
 
 SELECT DISTINCT p.patient_id
 FROM patients AS p
