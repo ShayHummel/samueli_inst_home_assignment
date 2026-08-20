@@ -198,9 +198,7 @@ result.classification.classification   # Classification.PD | Classification.NON_
 
 **Stage 1.** The PD / Non-PD definitions with CR / PR / SD collapsing to Non-PD and mixed
 response counting as PD, the injection block, the D13 rule, the six-step reading procedure —
-and a **scoped** grounding constraint. The scoping matters: an instruction to ignore outside
-medical knowledge would be self-defeating, since reading these notes *requires* knowing that
-PR is a response category and that "new hepatic lesions" means growth. So the prompt permits
+and a **scoped** grounding constraint. The scoping matters: the prompt permits
 clinical knowledge for **interpreting** the text and forbids it for **supplying facts**,
 singling out the dangerous case — reasoning from what is typical for a disease or treatment
 line, which describes patients in general rather than this one. The prompt can afford that
