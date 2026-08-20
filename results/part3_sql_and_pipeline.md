@@ -143,28 +143,34 @@ mock draws it for most notes accordingly.
 | Step | Function | Notes |
 | --- | --- | --- |
 | Random ground truth | `add_random_labels` | Seeded, fair coin, every record labeled — the literal reading of "a column of random binary labels". Prevalence and missing-label injection are keyword arguments for the tests, not CLI options, since neither is part of what 3.2 asks for. |
-| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies, and the function the pipeline actually calls. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
+| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. Emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
+| Stage-1 model | `mock_stage1(note) -> str` | Renders `call_local_llm`'s payload into stage 1's contract: prose, then `VERDICT` / `CONFIDENCE` / `EVIDENCE` / `REASONING`. No JSON. |
+| Stage-2 model | `mock_stage2_responses(note) -> list[str]` | Two queued responses: `call_local_llm_messy` for the first attempt, then whatever a repair call gets. |
 | Run the pipeline | `classify_note` (Part 2) | **The shipped flow, not a copy of it** — see below. |
 | Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC. Exactly the four 3.2 asks to be printed. |
 
-**Why there are two mocks.** A mock that only ever returns a clean dict cannot test the parser,
-and robust parsing is explicitly assessed. `call_local_llm` satisfies the required signature;
-the messy variant supplies the malformed shapes. The mock also draws *real substrings* of each
-note as evidence quotes — an invented quote would fail the grounding check for the wrong reason
-and tell us nothing.
+**Why the mock is split in two.** A mock that only ever returns a clean dict cannot test the
+parser, and robust parsing is explicitly assessed. `call_local_llm` gives the required
+signature; `call_local_llm_messy` supplies the malformed shapes. Evidence quotes are drawn as
+*real substrings* of the note — an invented quote would fail the grounding check for the wrong
+reason and tell us nothing.
 
-**The evaluation drives `classify_note`, not a reimplementation of it.** The mocks are wired in
-as the stage-1 and stage-2 models, so the measured run exercises the real stage split, the
-verdict-preservation check and the bounded repair loop — the same code path production uses,
-with only the models swapped. Evaluating a lookalike would measure the wrong thing, and did:
-an earlier version called the validator directly, skipping stage 4 entirely and reporting **22
-failures where the actual pipeline has 6**, because 17 records are rescued by repair. Both mocks
-derive from one seeded draw per note so the two stages agree, which is why verdict drift never
-fires here — a mock whose stages disagreed would report drift on every record and tell us
-nothing. Repair recovers most malformed output but not all (70%, deterministic per note); if it
-recovered everything the failure tally would be empty, and 3.2 asks for failures counted by
-type.
+**The evaluation drives `classify_note`, not a reimplementation of it.** One scripted model per
+stage, the same shape `src/demo.py` uses: `mock_stage1` renders the payload into stage 1's
+four-line contract, and `mock_stage2_responses` queues stage 2's replies. So the measured run
+exercises the real stage split, the verdict-preservation check and the bounded repair loop — the
+same code path production uses, with only the models swapped. Evaluating a lookalike measures
+the wrong thing, and did: an earlier version called the validator directly, skipping stage 4 and
+reporting **22 failures where the pipeline has 5**, because 17 records are rescued by repair.
+
+Two properties of the mock are deliberate. Both stages are built from **one** `call_local_llm`
+draw per note, so they cannot disagree — which is why verdict drift never fires here, and why a
+mock whose stages *did* disagree would report drift on every record and measure nothing. And
+repair recovers most malformed output but not all (70%, deterministic per note): a
+non-recovering note is handed back the *same* malformed text on every retry, because fresh
+output each time would let almost everything recover by luck and empty the failure tally that
+3.2 asks for.
 
 ### Results (seed 20260819)
 

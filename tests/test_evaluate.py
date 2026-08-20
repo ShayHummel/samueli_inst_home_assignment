@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -14,6 +16,8 @@ from src.evaluate import (
     call_local_llm,
     call_local_llm_messy,
     evaluate,
+    mock_stage1,
+    mock_stage2_responses,
     probability_of_pd,
     run_pipeline,
 )
@@ -161,36 +165,53 @@ def test_failures_are_attributed_to_a_type_never_swallowed():
     assert sum(outcome.tally.as_dict().values()) == len(failed)
 
 
-def test_clean_mode_produces_no_parse_failures():
-    df = frame([NOTE_WITH_STATUS, NOTE_WITHOUT_STATUS] * 20, [0.0, 1.0] * 20)
-    outcome = run_pipeline(df, messy=False)
-    assert outcome.tally.failures == 0
-
-
 # --------------------------------------------------------------------------- #
 # Metrics
 # --------------------------------------------------------------------------- #
 
 
-def test_records_without_ground_truth_are_excluded_and_reported():
-    df = frame([NOTE_WITH_STATUS] * 10, [0.0, 1.0, None, None, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
-    report = evaluate(run_pipeline(df, messy=False))
-    assert "excluded - no ground truth   2" in report
-    assert "evaluated                    8" in report
+def test_record_accounting_adds_up():
+    """Every record lands in exactly one bucket, so the three must sum to the total.
+
+    Asserted as an invariant rather than as fixed counts: stage 2 is always the messy
+    mock, so which records fail is a property of the corpus, and a record that fails
+    the pipeline never reaches the missing-ground-truth bucket.
+    """
+    labels = [0.0, 1.0, None] * 15
+    report = evaluate(run_pipeline(frame([f"case {i}" for i in range(45)], labels)))
+
+    def value(label: str) -> int:
+        line = next(ln for ln in report.splitlines() if label in ln)
+        return int(line.split()[-1])
+
+    assert (
+        value("excluded - pipeline failed")
+        + value("excluded - no ground truth")
+        + value("evaluated")
+        == value("records in corpus")
+        == 45
+    )
+
+
+def test_records_without_ground_truth_are_excluded():
+    """A NaN label must never reach the metrics."""
+    labels = [None] * 20
+    report = evaluate(run_pipeline(frame([f"case {i}" for i in range(20)], labels)))
+    assert "evaluated                    0" in report
+    assert "metrics undefined" in report
 
 
 def test_exclusions_are_visible_in_the_report():
     """Silent exclusion inflates every score, so the counts must be printed."""
-    df = frame([NOTE_WITH_STATUS] * 6, [0.0, 1.0, None, 0.0, 1.0, 0.0])
-    report = evaluate(run_pipeline(df, messy=False))
+    report = evaluate(run_pipeline(frame([NOTE_WITH_STATUS] * 6, [0.0, 1.0, None, 0.0, 1.0, 0.0])))
     for label in ("records in corpus", "excluded - pipeline failed",
                   "excluded - no ground truth", "evaluated"):
         assert label in report
 
 
-def test_report_contains_the_three_metrics_3_2_asks_for():
-    df = frame([NOTE_WITH_STATUS] * 8, [0.0, 1.0] * 4)
-    report = evaluate(run_pipeline(df, messy=False))
+def test_report_contains_the_metrics_3_2_asks_for():
+    notes = [f"no evidence of progression, case {i}" for i in range(40)]
+    report = evaluate(run_pipeline(frame(notes, [0.0, 1.0] * 20)))
     assert "Confusion matrix" in report
     assert "true Non-PD" in report and "true PD" in report
     for metric in ("precision", "recall", "f1", "roc-auc"):
@@ -199,19 +220,15 @@ def test_report_contains_the_three_metrics_3_2_asks_for():
 
 def test_roc_auc_undefined_with_a_single_class_present():
     """Undefined is the honest answer; 0.5 would be a fabricated number."""
-    df = frame([NOTE_WITH_STATUS] * 5, [0.0] * 5)
-    assert "roc-auc    undefined" in evaluate(run_pipeline(df, messy=False))
+    notes = [f"no evidence of progression, case {i}" for i in range(20)]
+    assert "roc-auc    undefined" in evaluate(run_pipeline(frame(notes, [0.0] * 20)))
 
 
-def test_no_evaluable_records_does_not_crash():
-    df = frame([NOTE_WITH_STATUS] * 3, [None, None, None])
-    assert "metrics undefined" in evaluate(run_pipeline(df, messy=False))
-
-
-def test_abstentions_are_counted_in_the_report():
+def test_abstentions_and_repairs_are_reported():
     notes = [NOTE_WITH_STATUS] * 10 + [NOTE_WITHOUT_STATUS] * 10
-    report = evaluate(run_pipeline(frame(notes, [0.0, 1.0] * 10), messy=False))
+    report = evaluate(run_pipeline(frame(notes, [0.0, 1.0] * 10)))
     assert "abstentions" in report
+    assert "recovered by stage-4 repair" in report
 
 
 # --------------------------------------------------------------------------- #
@@ -248,3 +265,32 @@ def test_stage_one_and_stage_two_mocks_agree_so_drift_never_fires():
 
     outcome = run_pipeline(frame([NOTE_WITH_STATUS, NOTE_WITHOUT_STATUS] * 20, [0.0, 1.0] * 20))
     assert outcome.tally.as_dict()[FailureType.VERDICT_DRIFT.value] == 0
+
+
+# --------------------------------------------------------------------------- #
+# The two per-stage mocks
+# --------------------------------------------------------------------------- #
+
+
+def test_stage1_mock_emits_the_four_line_contract():
+    text = mock_stage1(NOTE_WITH_STATUS)
+    for line in ("VERDICT:", "CONFIDENCE:", "EVIDENCE:", "REASONING:"):
+        assert line in text
+    assert "{" not in text, "stage 1 must not emit JSON"
+
+
+def test_stage1_mock_agrees_with_call_local_llm():
+    """The two stages are built from one payload, so they cannot disagree."""
+    payload = call_local_llm(NOTE_WITH_STATUS)
+    assert f"VERDICT: {payload['classification']}" in mock_stage1(NOTE_WITH_STATUS)
+
+
+def test_stage2_mock_queues_a_first_attempt_and_a_repair_response():
+    first, repair = mock_stage2_responses(NOTE_WITH_STATUS)
+    assert first == call_local_llm_messy(NOTE_WITH_STATUS)
+    # Either the repair lands (clean JSON) or the model repeats itself verbatim.
+    assert repair == first or json.loads(repair)
+
+
+def test_stage2_mock_is_deterministic():
+    assert mock_stage2_responses(NOTE_WITH_STATUS) == mock_stage2_responses(NOTE_WITH_STATUS)

@@ -119,7 +119,6 @@ def add_random_labels(
 # Mocked local LLM
 # --------------------------------------------------------------------------- #
 
-# @claude: Why do we need this function if it is not called by the current code?
 def call_local_llm(text: str, *, seed: int | None = None) -> dict:
     """Simulate the Part-2 output for one note. The signature the assignment asks for.
 
@@ -130,7 +129,6 @@ def call_local_llm(text: str, *, seed: int | None = None) -> dict:
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
     return _draw_payload(text, rng)
 
-# @claude: Why do we need this function if it is not called by the current code?
 def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     """Simulate *raw* model output, including the ways real output is malformed.
 
@@ -260,14 +258,15 @@ class RunOutcome:
         return self.frame[self.frame["ok"]]
 
 
-def _stage1_text(payload: dict) -> str:
-    """Render a payload as a stage-1 response: prose, then the four labeled lines.
+def mock_stage1(note: str) -> str:
+    """Stage-1 mock: render :func:`call_local_llm`'s payload as a stage-1 response.
 
-    Derived from the *same* payload the structuring mock will format, so the two
-    stages agree and the verdict-preservation check does not fire spuriously. A mock
-    whose stages disagreed would report verdict drift on every record and tell us
-    nothing about the parser.
+    Stage 1's contract is prose followed by four labeled lines, so the payload is
+    rendered into that shape rather than emitted as JSON. Built from the same
+    ``call_local_llm`` draw that :func:`call_local_llm_messy` formats, so the two
+    stages agree and the verdict-preservation check does not fire spuriously.
     """
+    payload = call_local_llm(note)
     quotes = payload["supporting_evidence"]
     evidence = " | ".join(f'"{q}"' for q in quotes) if quotes else "NONE"
     return (
@@ -286,46 +285,46 @@ def _stage1_text(payload: dict) -> str:
 REPAIR_SUCCESS_RATE = 0.7
 
 
-def _mock_models(note: str, *, messy: bool) -> tuple[LlmCallable, LlmCallable]:
-    """Scripted stage-1 and stage-2 models for one note.
+def mock_stage2_responses(note: str) -> list[str]:
+    """Stage-2 mock: the scripted responses stage 2 gives for one note.
 
-    Built from the two mocks the assignment asks for: :func:`call_local_llm` supplies
-    the payload and :func:`call_local_llm_messy` the raw stage-2 response. Both are
-    seeded on the note text and draw the payload identically, so the two stages agree
-    and the verdict-preservation check does not fire spuriously.
+    Two entries, in the order the pipeline will consume them:
 
-    The structuring mock is stateful: a subsequent call only happens when stage 3
-    rejected the first and stage 4 is retrying, and usually returns clean JSON. That is
-    what makes the repair path observable in the reported numbers.
+    1. :func:`call_local_llm_messy` — the first attempt, possibly malformed.
+    2. What a stage-4 repair call gets back. Most notes recover with clean JSON; the
+       rest see the *same* malformed output again, so a non-recovering note stays
+       failed however many retries are allowed. Drawing fresh output on each retry
+       would let almost everything recover by luck and empty the failure tally.
     """
-    payload = call_local_llm(note)
-    stage1 = _stage1_text(payload)
-    first_raw = call_local_llm_messy(note) if messy else json.dumps(payload)
-
-    repair_recovers = bool(
+    first = call_local_llm_messy(note)
+    recovers = (
         np.random.default_rng(_text_seed(note) + 1).random() < REPAIR_SUCCESS_RATE
     )
-    state = {"calls": 0}
+    return [first, json.dumps(call_local_llm(note)) if recovers else first]
 
-    def reasoning_llm(_messages):
+
+def _mock_models(note: str) -> tuple[LlmCallable, LlmCallable]:
+    """Wire the two per-stage mocks up as models `classify_note` can call.
+
+    Same shape as the scenarios in ``src/demo.py``: one scripted model per stage,
+    stage 2 returning queued responses so the repair path is exercised.
+    """
+    stage1 = mock_stage1(note)
+    queued = iter(mock_stage2_responses(note))
+    last = ""
+
+    def reasoning_llm(_messages: object) -> str:
         return stage1
 
-    def structuring_llm(_messages):
-        state["calls"] += 1
-        if state["calls"] == 1:
-            return first_raw
-        # A retry. Either the repair prompt lands, or the model repeats its mistake --
-        # returning the *same* malformed output rather than a fresh random one, so a
-        # non-recovering note stays failed however many attempts are allowed. Drawing
-        # again would let almost everything recover by luck and empty the failure tally.
-        return json.dumps(payload) if repair_recovers else first_raw
+    def structuring_llm(_messages: object) -> str:
+        nonlocal last
+        last = next(queued, last)
+        return last
 
     return reasoning_llm, structuring_llm
 
 
-def run_pipeline(
-    df: pd.DataFrame, *, messy: bool = True, max_repair_attempts: int = 2
-) -> RunOutcome:
+def run_pipeline(df: pd.DataFrame, *, max_repair_attempts: int = 2) -> RunOutcome:
     """Run every transcription through the real Part-2 pipeline.
 
     Deliberately calls :func:`~src.pipeline.classify_note` rather than reimplementing
@@ -336,8 +335,6 @@ def run_pipeline(
 
     Args:
         df: Frame with ``transcription`` and ``ground_truth`` columns.
-        messy: If True (default), stage 2 may emit malformed output, so the robust
-            parsing and repair paths are exercised. False makes every response clean.
         max_repair_attempts: Passed through to the pipeline.
     """
     tally = FailureTally()
@@ -345,7 +342,7 @@ def run_pipeline(
 
     for _, record in df.iterrows():
         note = record["transcription"]
-        reasoning_llm, structuring_llm = _mock_models(note, messy=messy)
+        reasoning_llm, structuring_llm = _mock_models(note)
 
         result = classify_note(
             note,

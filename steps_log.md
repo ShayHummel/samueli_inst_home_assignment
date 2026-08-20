@@ -1761,3 +1761,40 @@ Ran the reachability check over all of `src/`, not just `evaluate.py`: nothing e
 unreachable from an entry point. `evaluate.py` is now 492 lines, every function called from the
 pipeline. Part 3 figures re-diffed against a live run; output byte-identical across runs; 105
 tests pass; ruff clean.
+
+### Round 29 — `_mock_models` restructured to match the demo's shape
+
+Instruction: the demo's scenarios mock stage 1 and stage 2 explicitly, `_mock_models` should
+work in that spirit, `messy` should always be true, and `call_local_llm_messy` should be the
+stage-2 mock.
+
+Done. The mock is now two named per-stage functions rather than one closure with a flag:
+
+- **`mock_stage1(note) -> str`** — renders `call_local_llm`'s payload into stage 1's contract:
+  prose, then `VERDICT` / `CONFIDENCE` / `EVIDENCE` / `REASONING`, no JSON.
+- **`mock_stage2_responses(note) -> list[str]`** — the two responses stage 2 gives, in the order
+  the pipeline consumes them: `call_local_llm_messy(note)` first, then whatever a stage-4 repair
+  call gets back.
+
+`_mock_models` is now a thin wiring function that hands those to `classify_note`, using a queued
+iterator exactly as `src/demo.py`'s `_ScriptedLlm` does. That replaced a `{"calls": n}` counter
+dict with `next(queued, last)` — the demo's idiom was simply better than mine.
+
+**The `messy` flag is gone.** It existed only so tests could force clean output, which meant a
+mode nothing in production used. Stage 2 is now always the messy mock, which is the honest
+default: 3.2 is explicit that real output is malformed.
+
+**Seven tests were rewritten** because exact bucket counts are no longer stable — with stage 2
+always messy, a record that fails the pipeline never reaches the missing-ground-truth bucket, so
+"expect exactly 2 unlabeled" was an assertion about the corpus rather than about the code. They
+now assert **invariants**: that the three exclusion buckets sum to the corpus size, that a
+NaN-labeled corpus yields zero evaluated records, and that the report carries every metric 3.2
+requires. `test_clean_mode_produces_no_parse_failures` was deleted with the mode it tested.
+
+**Four tests added** for the new seam, since it is now the documented way to swap models:
+that stage 1 emits the four-line contract and no JSON, that it agrees with `call_local_llm`,
+that stage 2 queues a first attempt plus a repair response, and that both are deterministic.
+
+Reported numbers unchanged (valid 85 / failed 5 / ROC-AUC 0.542), so the Part 3 figures stand.
+`evaluate.py` 492 → 489 lines, 105 → 108 tests, reachability still clean across all of `src/`,
+output byte-identical across runs.
