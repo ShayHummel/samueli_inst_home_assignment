@@ -1666,3 +1666,54 @@ tests.
 
 Part 3 and the README updated; every figure in the document re-diffed against a live run, and
 output is byte-identical across runs.
+
+### Round 27 — simplify against what the PDF actually asks for
+
+Two comments: why `0.25` is hard-coded rather than using `pd_prevalence`, and a general note
+that the code is cumbersome and over-engineers things nobody asked for.
+
+**On `0.25`.** It is the mock *model's* rate of predicting PD among notes that have assessable
+content. `pd_prevalence` governs the random *ground-truth* labels. They are deliberately
+independent: coupling them would manufacture a correlation the evaluation exists to find absent.
+So the two should not be merged — but it was an unexplained magic number, which is the real
+complaint. Now `MOCK_PD_RATE`, with a comment stating what it is, what it is not, and that the
+value is arbitrary.
+
+**On over-engineering.** Re-read 3.2. It asks for exactly six things: random binary labels,
+`call_local_llm(text) -> dict`, robust parsing with validation against the Part-2 schema and
+failures counted by type, and printed confusion matrix / PD-class P-R-F1 / ROC-AUC. Everything
+else in `evaluate.py` was mine.
+
+Removed, none of it requested by the PDF or by the candidate:
+- **bootstrap confidence intervals** (~50 lines) and `_fmt_ci`
+- **selective-prediction coverage reporting** (~25 lines). The abstention-to-0.5 *mapping* stays
+  — without it the ROC-AUC inverts — but reporting coverage as a second AUC was extra.
+- **`Metrics` dataclass + `render()`** (76 lines) → `evaluate()` now returns a report string.
+  3.2 says "compute and print"; a dataclass with a renderer was ceremony around a print.
+- **`RunOutcome`** kept, but the `--bootstrap`, `--out` and `--clean` CLI flags went. The CLI is
+  now `--seed` alone, which 2.6's reproducibility argument justifies.
+- **`classify_notes`** in `pipeline.py` — dead outside its own two tests once `run_pipeline`
+  took over the corpus loop.
+- Three long docstrings trimmed where the reasoning already lives in the answers document.
+
+**The walkthrough was moved, not deleted.** It is 362 lines and was an explicit earlier request,
+so removing it silently would be undoing that. It now lives in `src/demo.py` with the
+`samueli-pipeline` entry point pointing there, which takes `pipeline.py` from 636 lines to
+**256** — the flow is now readable in one screen. Worth noting it largely duplicates test
+coverage: repair, drift, abstention and injection are all asserted in `tests/`, so it could go
+entirely. Flagged for the candidate rather than decided.
+
+| | before | after |
+| --- | ---: | ---: |
+| `src/evaluate.py` | 704 | 495 |
+| `src/pipeline.py` | 636 | **256** |
+| tests | 1,731 | 1,570 |
+| test count | 113 | 105 |
+
+Eight tests went with the removed features. Coverage of what 3.2 actually requires is unchanged
+— the new `test_report_contains_the_three_metrics_3_2_asks_for` asserts the printed report
+carries all four required outputs, which is closer to the requirement than asserting on a
+dataclass field ever was.
+
+Part 3 and the README updated; every figure re-diffed against a live run, output byte-identical
+across runs, ruff clean.

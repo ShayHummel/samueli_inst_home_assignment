@@ -130,7 +130,7 @@ uv run pytest tests/test_sql_queries.py -v
 ## Task 3.2 — Python evaluation pipeline
 
 [`src/evaluate.py`](../src/evaluate.py) · run with `uv run python -m src.evaluate`
-· tests: [`tests/test_evaluate.py`](../tests/test_evaluate.py) (26)
+· tests: [`tests/test_evaluate.py`](../tests/test_evaluate.py) (21)
 
 The property of the corpus that shaped this implementation: **62 of the 90 notes (69%) contain
 no disease-status or progression vocabulary at all** — no "progressive disease", "PD", "stable
@@ -146,7 +146,7 @@ mock draws it for most notes accordingly.
 | Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Run the pipeline | `classify_note` (Part 2) | **The shipped flow, not a copy of it** — see below. |
-| Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC, bootstrap CIs, coverage. |
+| Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC. Exactly the four 3.2 asks to be printed. |
 
 **Why there are two mocks.** A mock that only ever returns a clean dict cannot test the parser,
 and robust parsing is explicitly assessed. `call_local_llm` satisfies the required signature;
@@ -169,23 +169,19 @@ type.
 ### Results (seed 20260819)
 
 ```
-Failures by type                           Record accounting
-  records: 90                                records in corpus                  90
-  valid:   84                                excluded - pipeline failed           6
-  failed:  6                                 excluded - no ground truth           0
-    no_json_found:           3               evaluated                           84
-    json_decode_error:       2               of which PD (positive class)         47
-    schema_validation_error: 1               abstentions among valid outputs      58
-                                             recovered by stage-4 repair         17
+Failures by type                     Record accounting
+  records: 90                          records in corpus            90
+  valid:   84                          excluded - pipeline failed    6
+  failed:  6                           excluded - no ground truth    0
+    no_json_found:           3         evaluated                    84
+    json_decode_error:       2         recovered by stage-4 repair  17
+    schema_validation_error: 1         abstentions                  58
 
-Confusion matrix                           PD-class metrics
-                pred Non-PD  pred PD        precision  0.778
-  true Non-PD            35        2        recall     0.149
-  true PD                40        7        f1         0.250  95% CI [0.098, 0.393]
-                                            roc-auc    0.570  95% CI [0.477, 0.664]
-
-Selective prediction (abstentions excluded)
-  committed on 26 of 84 (31% coverage)   roc-auc 0.636
+Confusion matrix                     PD-class metrics
+                pred Non-PD  pred PD    precision  0.778
+  true Non-PD            35        2    recall     0.149
+  true PD                40        7    f1         0.250
+                                        roc-auc    0.570
 ```
 
 **These numbers measure the harness, not clinical accuracy** — the labels are random by
@@ -202,11 +198,11 @@ direction, which is the honest encoding of "no evidence". That is why the select
 figure below, computed over the records the model actually committed on, is the more informative
 of the two.
 
-The number worth reading is **ROC-AUC 0.570, 95% CI [0.477, 0.664]** — an interval straddling
-0.5. That is exactly the right answer: against labels with no relationship to the input, a
-correct harness must find no discrimination, and the interval says so rather than leaving it to
-be assumed. It is the strongest available evidence that the evaluation code measures what it
-claims to, and an AUC far from 0.5 here would be a signal to go looking for a bug.
+The number worth reading is **ROC-AUC 0.570** — close to 0.5, which is the right answer.
+Against labels with no relationship to the input, a correct harness must find no
+discrimination, so this is the strongest available evidence that the evaluation code measures
+what it claims to. An AUC far from 0.5 here would be a signal to go looking for a bug, which is
+how an earlier sign error in the abstention scoring was caught.
 
 Precision 0.778 against recall 0.149 is the other thing to notice, and it is an artifact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class
@@ -293,9 +289,8 @@ huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
 7. **Only then change the model.** Threshold, calibration and label quality account for this
    pattern far more often than model capacity does, and all three are cheaper to fix.
 
-This pipeline shows the pattern in miniature: committed-subset ROC-AUC of **0.636** against an
-F1 of **0.250**, with precision 0.778 and recall 0.149. The driver is abstention — most records
-carry no evidence, so the model commits rarely, which flatters precision and destroys recall
-while the ranking over the committed subset stays better than any single decision rule applied
-corpus-wide can express. (With random labels the magnitude is inside the confidence intervals;
-the mechanism is the point.)
+This pipeline shows the pattern in miniature: ROC-AUC **0.570** against an F1 of **0.250**,
+with precision 0.778 and recall 0.149. The driver is abstention — most records carry no
+evidence, so the model commits rarely, which flatters precision and destroys recall while
+leaving the ranking largely intact. With random labels the magnitude is noise; the mechanism is
+the point.

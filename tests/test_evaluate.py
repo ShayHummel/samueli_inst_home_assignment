@@ -10,7 +10,6 @@ from src.evaluate import (
     LABEL_NON_PD,
     LABEL_PD,
     UNINFORMATIVE_SCORE,
-    Metrics,
     add_random_labels,
     call_local_llm,
     call_local_llm_messy,
@@ -175,66 +174,44 @@ def test_clean_mode_produces_no_parse_failures():
 
 def test_records_without_ground_truth_are_excluded_and_reported():
     df = frame([NOTE_WITH_STATUS] * 10, [0.0, 1.0, None, None, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=0)
-    assert metrics.n_missing_ground_truth == 2
-    assert metrics.n_evaluated == 8
-    assert metrics.n_total == 10
-    assert "no ground truth         2" in metrics.render()
+    report = evaluate(run_pipeline(df, messy=False))
+    assert "excluded - no ground truth   2" in report
+    assert "evaluated                    8" in report
 
 
-def test_exclusions_are_visible_in_the_rendered_report():
+def test_exclusions_are_visible_in_the_report():
     """Silent exclusion inflates every score, so the counts must be printed."""
     df = frame([NOTE_WITH_STATUS] * 6, [0.0, 1.0, None, 0.0, 1.0, 0.0])
-    text = evaluate(run_pipeline(df, messy=False), bootstrap=0).render()
-    assert "records in corpus" in text
-    assert "pipeline failed" in text
-    assert "evaluated" in text
+    report = evaluate(run_pipeline(df, messy=False))
+    for label in ("records in corpus", "excluded - pipeline failed",
+                  "excluded - no ground truth", "evaluated"):
+        assert label in report
 
 
-def test_confusion_matrix_orientation_is_truth_by_prediction():
-    df = frame([NOTE_WITH_STATUS] * 4, [0.0, 0.0, 1.0, 1.0])
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=0)
-    assert metrics.confusion.shape == (2, 2)
-    assert metrics.confusion.sum() == metrics.n_evaluated
+def test_report_contains_the_three_metrics_3_2_asks_for():
+    df = frame([NOTE_WITH_STATUS] * 8, [0.0, 1.0] * 4)
+    report = evaluate(run_pipeline(df, messy=False))
+    assert "Confusion matrix" in report
+    assert "true Non-PD" in report and "true PD" in report
+    for metric in ("precision", "recall", "f1", "roc-auc"):
+        assert metric in report
 
 
 def test_roc_auc_undefined_with_a_single_class_present():
+    """Undefined is the honest answer; 0.5 would be a fabricated number."""
     df = frame([NOTE_WITH_STATUS] * 5, [0.0] * 5)
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=0)
-    assert metrics.roc_auc is None
-    assert "undefined" in metrics.render()
+    assert "roc-auc    undefined" in evaluate(run_pipeline(df, messy=False))
 
 
-def test_no_evaluable_records_renders_without_crashing():
+def test_no_evaluable_records_does_not_crash():
     df = frame([NOTE_WITH_STATUS] * 3, [None, None, None])
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=0)
-    assert metrics.n_evaluated == 0
-    assert "metrics undefined" in metrics.render()
+    assert "metrics undefined" in evaluate(run_pipeline(df, messy=False))
 
 
-def test_selective_prediction_reports_coverage():
+def test_abstentions_are_counted_in_the_report():
     notes = [NOTE_WITH_STATUS] * 10 + [NOTE_WITHOUT_STATUS] * 10
-    df = frame(notes, [0.0, 1.0] * 10)
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=0)
-    assert metrics.n_abstentions > 0
-    assert metrics.n_committed < metrics.n_evaluated
-    assert "coverage" in metrics.render()
-
-
-def test_bootstrap_interval_brackets_the_point_estimate():
-    df = frame([NOTE_WITH_STATUS] * 60, ([0.0] * 3 + [1.0]) * 15)
-    metrics = evaluate(run_pipeline(df, messy=False), bootstrap=500, seed=11)
-    if metrics.roc_auc_ci is not None:
-        low, high = metrics.roc_auc_ci
-        assert low <= metrics.roc_auc <= high
-
-
-def test_metrics_render_is_stable_for_an_empty_run():
-    m = Metrics(
-        n_total=0, n_pipeline_failed=0, n_missing_ground_truth=0, n_evaluated=0,
-        n_positive=0, confusion=None, precision=None, recall=None, f1=None, roc_auc=None,
-    )
-    assert "metrics undefined" in m.render()
+    report = evaluate(run_pipeline(frame(notes, [0.0, 1.0] * 10), messy=False))
+    assert "abstentions" in report
 
 
 # --------------------------------------------------------------------------- #

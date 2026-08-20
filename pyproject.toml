@@ -20,7 +20,7 @@ dependencies = [
 # Stable commands that work from any directory and sidestep the
 # "python src/foo.py" relative-import trap entirely.
 samueli-evaluate = "src.evaluate:main"
-samueli-pipeline = "src.pipeline:demo"
+samueli-pipeline = "src.demo:demo"
 
 [dependency-groups]
 # Installed by `uv sync` by default, so the IDE's interpreter can see them.

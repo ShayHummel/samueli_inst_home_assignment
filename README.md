@@ -10,7 +10,7 @@ if needed).
 
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
-uv run pytest -q                         # 113 tests
+uv run pytest -q                         # 105 tests
 uv run ruff check .                      # lint: unused imports, undeclared packages
 
 uv run samueli-evaluate                  # Task 3.2 evaluation
@@ -54,12 +54,13 @@ src/
   validation.py    verify_output(): extraction, schema, verdict drift, quote grounding
   pipeline.py      classify_note(): the flow that drives all four prompts
   evaluate.py      Task 3.2: labels, mocked LLM, robust parsing, metrics
+  demo.py          walkthrough of every stage, against scripted models
 
 sql/
   schema.sql       DDL for the Task 3.1 clinical schema
   queries/         one file per query, each with its assumptions in a header
 
-tests/             113 tests
+tests/             105 tests
 hw_docs/           the assignment PDF and Oncology.csv
 ```
 

@@ -61,6 +61,13 @@ LABEL_NON_PD, LABEL_PD = 0, 1
 
 DEFAULT_SEED = 20260819
 
+#: How often the mock *predicts* PD among notes that have assessable content.
+#: Distinct from ``pd_prevalence``, which governs the random ground-truth labels:
+#: the fake model and the fake truth are drawn independently on purpose, since
+#: coupling them would manufacture a correlation the evaluation is meant to find
+#: absent. The exact value is arbitrary.
+MOCK_PD_RATE = 0.25
+
 DATA_PATH = Path(__file__).resolve().parent.parent / "hw_docs" / "Oncology.csv"
 
 
@@ -93,22 +100,10 @@ def add_random_labels(
 ) -> pd.DataFrame:
     """Attach a random binary ground-truth column.
 
-    Random by instruction: these labels exist to exercise the evaluation code, not
-    to measure clinical accuracy. Any metric computed against them is a test of the
-    harness, and the report says so rather than presenting the numbers as
-    performance.
-
-    Both keyword arguments default to the literal reading of the task — "a column of
-    random binary labels", i.e. a fair coin, with every record labeled. Neither is
-    exposed on the command line, because neither is part of what 3.2 asks for; they
-    exist so the tests can construct the distributions they need:
-
-    * ``pd_prevalence`` — a fair coin also keeps the evaluation non-degenerate. At a
-      5% positive rate over 90 records there are only ~4 positives, which leaves the
-      confusion matrix and PD-class metrics too sparse to demonstrate much.
-    * ``missing_rate`` — injects ``NaN`` ground truth. Off by default: the *handling*
-      of unlabeled records is a 3.3 answer and is covered by tests, so fabricating
-      them in the default run would only distort the reported counts.
+    Random by instruction: these labels exist to exercise the evaluation code, not to
+    measure clinical accuracy. Defaults are the literal reading of the task — a fair
+    coin, every record labeled. Both keyword arguments exist for the tests and are
+    deliberately not on the command line, since neither is part of what 3.2 asks for.
     """
     rng = np.random.default_rng(seed)
     labels = rng.binomial(1, pd_prevalence, size=len(df)).astype(float)
@@ -139,25 +134,11 @@ def call_local_llm(text: str, *, seed: int | None = None) -> dict:
 def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     """Simulate *raw* model output, including the ways real output is malformed.
 
-    This exists because a mock that only ever returns clean dicts cannot test the
-    parser, and the assignment is explicit that robust parsing is being assessed:
-    "fenced code blocks, trailing prose, truncated or invalid JSON". The pipeline
-    calls this rather than :func:`call_local_llm` so those paths are genuinely
-    exercised and show up in the failure tally.
-
-    Failure modes are drawn with fixed probabilities:
-
-    ==========================  =====  ==================================
-    mode                        prob   what it tests
-    ==========================  =====  ==================================
-    clean JSON                  0.55   happy path
-    fenced in a code block      0.15   fence stripping
-    trailing / leading prose    0.12   brace-matched extraction
-    truncated mid-object        0.06   ``no_json_found``
-    invalid JSON (trailing ,)   0.05   ``json_decode_error``
-    confidence out of range     0.04   ``schema_validation_error``
-    unknown extra field         0.03   ``extra="forbid"``
-    ==========================  =====  ==================================
+    A mock that only ever returns clean dicts cannot test the parser, and 3.2 is
+    explicit that robust parsing is assessed: "fenced code blocks, trailing prose,
+    truncated or invalid JSON". Modes are drawn at fixed probabilities: clean 0.55,
+    fenced 0.15, prose 0.12, truncated 0.06, invalid JSON 0.05, out-of-range
+    confidence 0.04, unknown field 0.03.
     """
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
     return _wrap_messy(_draw_payload(text, rng), rng)
@@ -191,14 +172,10 @@ def _wrap_messy(payload: dict, rng: np.random.Generator) -> str:
 
 
 def _text_seed(text: str) -> int:
-    """A stable seed derived from the note, so results do not depend on row order.
+    """A stable seed derived from the note.
 
-    Uses SHA-256 rather than the builtin ``hash()``. Python salts string hashing
-    per process (PEP 456) unless ``PYTHONHASHSEED`` is pinned, so ``hash(text)``
-    yields different values on every run — which silently made this pipeline
-    irreproducible and changed the failure tally between invocations. Precisely the
-    class of hidden non-determinism Part 2.6 warns about, found by running the thing
-    twice and noticing the numbers moved.
+    SHA-256 rather than the builtin ``hash()``, which Python salts per process
+    (PEP 456) — that made an earlier version silently irreproducible.
     """
     digest = hashlib.sha256(text.encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big") % (2**32)
@@ -223,7 +200,7 @@ def _draw_payload(text: str, rng: np.random.Generator) -> dict:
             "disease status or treatment response.",
         }
 
-    is_pd = bool(rng.random() < 0.25)
+    is_pd = bool(rng.random() < MOCK_PD_RATE)
     return {
         "classification": (Classification.PD if is_pd else Classification.NON_PD).value,
         "confidence_score": float(rng.integers(60, 98)),
@@ -410,39 +387,18 @@ def run_pipeline(
 
     return RunOutcome(frame=pd.DataFrame(rows), tally=tally)
 
-
-#: Score given to an abstention: exactly uninformative, so every abstention ties
-#: with every other and contributes no discrimination either way.
+#: Score given to an abstention. An abstention is Non-PD at *low* confidence, so the
+#: usual `1 - confidence` mapping would turn "the note says nothing" into "almost
+#: certainly PD". A constant leaves abstentions tied, contributing no discrimination.
 UNINFORMATIVE_SCORE = 0.5
 
 
 def probability_of_pd(
     predicted_label: int, confidence: float, *, is_abstention: bool = False
 ) -> float:
-    """Convert "confidence in my chosen label" into P(PD).
-
-    The schema's ``confidence_score`` is confidence in whichever label the model
-    picked, not the probability of the positive class. Passing it straight to
-    ``roc_auc_score`` treats a confident **Non-PD** as strong evidence *for* PD,
-    which silently inverts half the ranking.
-
-    **Abstentions need special handling, and getting this wrong is easy.** The D13
-    signature is ``Non-PD`` with a *low* confidence, meaning "the note says
-    nothing". Under the naive mapping that becomes ``1 - 0.1 = 0.9``, i.e. "almost
-    certainly PD" — the exact opposite of what it means. Because the EDA found ~69%
-    of this corpus has no assessable content, that single sign error dominates the
-    ranking and drove observed ROC-AUC to 0.08 against random labels, which is well
-    outside anything chance could produce.
-
-    So an abstention is mapped to a constant :data:`UNINFORMATIVE_SCORE`. Ties carry
-    no ranking information, which is the honest encoding of "no evidence". The more
-    informative figure is ROC-AUC over the records the model *did* commit on,
-    reported alongside coverage — the selective-prediction framing from Q1.2c.
-    """
+    """Convert "confidence in the chosen label" into P(PD), for the ROC-AUC."""
     if is_abstention:
         return UNINFORMATIVE_SCORE
-    # `confidence` here is already on the output scale (0.0-1.0): the rescale from
-    # the model's 0-100 happens once, in RawClassification.to_output.
     return confidence if predicted_label == LABEL_PD else 1.0 - confidence
 
 
@@ -451,215 +407,61 @@ def probability_of_pd(
 # --------------------------------------------------------------------------- #
 
 
-@dataclass
-class Metrics:
-    """Evaluation results, with the record accounting that makes them interpretable."""
+def evaluate(outcome: RunOutcome) -> str:
+    """Compute the metrics 3.2 asks for and return them as a printable report.
 
-    n_total: int
-    n_pipeline_failed: int
-    n_missing_ground_truth: int
-    n_evaluated: int
-    n_positive: int
-    confusion: np.ndarray | None
-    precision: float | None
-    recall: float | None
-    f1: float | None
-    roc_auc: float | None
-    f1_ci: tuple[float, float] | None = None
-    roc_auc_ci: tuple[float, float] | None = None
-    n_abstentions: int = 0
-    #: Records that failed validation once and were rescued by stage 4.
-    n_recovered_by_repair: int = 0
-    #: ROC-AUC restricted to records the model committed on (selective prediction).
-    roc_auc_committed: float | None = None
-    n_committed: int = 0
-
-    def render(self) -> str:
-        lines = ["Record accounting", "-" * 68]
-        lines.append(f"  records in corpus                 {self.n_total}")
-        lines.append(f"  excluded - pipeline failed              {self.n_pipeline_failed}")
-        lines.append(f"  excluded - no ground truth         {self.n_missing_ground_truth}")
-        lines.append(f"  evaluated                          {self.n_evaluated}")
-        lines.append(f"  of which PD (positive class)       {self.n_positive}")
-        lines.append(f"  abstentions among valid outputs    {self.n_abstentions}")
-        lines.append(f"  recovered by stage-4 repair        {self.n_recovered_by_repair}")
-
-        if self.n_evaluated == 0 or self.confusion is None:
-            lines.append("\nNo evaluable records — metrics undefined.")
-            return "\n".join(lines)
-
-        tn, fp, fn, tp = self.confusion.ravel()
-        lines += [
-            "",
-            "Confusion matrix (rows = truth, cols = predicted)",
-            "-" * 68,
-            "                 pred Non-PD   pred PD",
-            f"  true Non-PD    {tn:>11}   {fp:>7}",
-            f"  true PD        {fn:>11}   {tp:>7}",
-            "",
-            "PD-class metrics",
-            "-" * 68,
-            f"  precision  {_fmt(self.precision)}",
-            f"  recall     {_fmt(self.recall)}",
-            f"  f1         {_fmt(self.f1)}{_fmt_ci(self.f1_ci)}",
-            f"  roc-auc    {_fmt(self.roc_auc)}{_fmt_ci(self.roc_auc_ci)}",
-        ]
-        coverage = self.n_committed / self.n_evaluated if self.n_evaluated else 0.0
-        lines += [
-            "",
-            "Selective prediction (abstentions excluded)",
-            "-" * 68,
-            (
-                f"  committed on   {self.n_committed} of {self.n_evaluated} "
-                f"({coverage:.0%} coverage)"
-            ),
-            f"  roc-auc        {_fmt(self.roc_auc_committed)}",
-        ]
-        if self.n_positive < 10:
-            lines += [
-                "",
-                f"  NOTE: only {self.n_positive} positive case(s). These intervals are wide",
-                "  enough that the point estimates should not be quoted alone.",
-            ]
-        return "\n".join(lines)
-
-
-def _fmt(value: float | None) -> str:
-    return "undefined" if value is None else f"{value:.3f}"
-
-
-def _fmt_ci(ci: tuple[float, float] | None) -> str:
-    return "" if ci is None else f"   95% CI [{ci[0]:.3f}, {ci[1]:.3f}]"
-
-
-def evaluate(
-    outcome: RunOutcome,
-    *,
-    bootstrap: int = 2000,
-    seed: int = DEFAULT_SEED,
-) -> Metrics:
-    """Compute metrics, excluding unusable records and reporting the exclusions."""
+    Records that failed the pipeline, and records with no ground truth, are excluded
+    and the exclusions are reported. Dropping them silently would inflate every score,
+    because they are not a random sample — see 3.3.
+    """
     frame = outcome.frame
-    n_total = len(frame)
-    n_pipeline_failed = int((~frame["ok"]).sum())
-
     valid = frame[frame["ok"]]
-    n_missing_gt = int(valid["ground_truth"].isna().sum())
-
     evaluable = valid[valid["ground_truth"].notna()]
-    n_abstentions = int(valid["is_abstention"].fillna(False).astype(bool).sum())
-    n_recovered = int(((frame["repair_attempts"] > 0) & frame["ok"]).sum())
 
+    out = [
+        "Record accounting",
+        "-" * 60,
+        f"  records in corpus            {len(frame)}",
+        f"  excluded - pipeline failed   {int((~frame['ok']).sum())}",
+        f"  excluded - no ground truth   {int(valid['ground_truth'].isna().sum())}",
+        f"  evaluated                    {len(evaluable)}",
+        f"  recovered by stage-4 repair  {int(((frame['repair_attempts'] > 0) & frame['ok']).sum())}",
+        f"  abstentions                  {int(valid['is_abstention'].fillna(False).astype(bool).sum())}",
+    ]
     if evaluable.empty:
-        return Metrics(
-            n_total=n_total,
-            n_pipeline_failed=n_pipeline_failed,
-            n_missing_ground_truth=n_missing_gt,
-            n_evaluated=0,
-            n_positive=0,
-            confusion=None,
-            precision=None,
-            recall=None,
-            f1=None,
-            roc_auc=None,
-            n_abstentions=n_abstentions,
-            n_recovered_by_repair=n_recovered,
-        )
+        return "\n".join(out + ["", "No evaluable records - metrics undefined."])
 
     y_true = evaluable["ground_truth"].astype(int).to_numpy()
     y_pred = evaluable["predicted_label"].astype(int).to_numpy()
     y_score = evaluable["p_pd"].astype(float).to_numpy()
 
-    cm = confusion_matrix(y_true, y_pred, labels=[LABEL_NON_PD, LABEL_PD])
+    tn, fp, fn, tp = confusion_matrix(
+        y_true, y_pred, labels=[LABEL_NON_PD, LABEL_PD]
+    ).ravel()
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_true, y_pred, labels=[LABEL_PD], average="binary", pos_label=LABEL_PD,
         zero_division=0.0,
     )
+    # ROC-AUC is undefined with a single class present; say so rather than reporting a
+    # meaningless 0.5.
+    auc = float(roc_auc_score(y_true, y_score)) if len(np.unique(y_true)) == 2 else None
 
-    # ROC-AUC is undefined with a single class present; say so rather than crashing
-    # or reporting a meaningless 0.5.
-    roc_auc = (
-        float(roc_auc_score(y_true, y_score)) if len(np.unique(y_true)) == 2 else None
-    )
-
-    f1_ci, auc_ci = _bootstrap_cis(y_true, y_pred, y_score, n=bootstrap, seed=seed)
-
-    # The more informative figure: discrimination over the records the model
-    # actually committed on. Abstentions are tied at UNINFORMATIVE_SCORE and can
-    # only dilute the AUC toward 0.5, so reporting coverage alongside is essential
-    # for the number to mean anything.
-    # astype(bool) is required: the column is object dtype because it holds
-    # None for failed records, and `~` on an object Series does bitwise
-    # negation (-1/-2) rather than logical not.
-    abstained = evaluable["is_abstention"].fillna(False).astype(bool)
-    committed = evaluable[~abstained]
-    roc_auc_committed = None
-    if len(committed) >= 2:
-        ct = committed["ground_truth"].astype(int).to_numpy()
-        if len(np.unique(ct)) == 2:
-            roc_auc_committed = float(
-                roc_auc_score(ct, committed["p_pd"].astype(float).to_numpy())
-            )
-
-    return Metrics(
-        n_total=n_total,
-        n_pipeline_failed=n_pipeline_failed,
-        n_missing_ground_truth=n_missing_gt,
-        n_evaluated=len(evaluable),
-        n_positive=int(y_true.sum()),
-        confusion=cm,
-        precision=float(precision),
-        recall=float(recall),
-        f1=float(f1),
-        roc_auc=roc_auc,
-        f1_ci=f1_ci,
-        roc_auc_ci=auc_ci,
-        n_abstentions=n_abstentions,
-        n_recovered_by_repair=n_recovered,
-        roc_auc_committed=roc_auc_committed,
-        n_committed=len(committed),
-    )
-
-
-def _bootstrap_cis(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    y_score: np.ndarray,
-    *,
-    n: int,
-    seed: int,
-) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
-    """Percentile bootstrap CIs for F1 and ROC-AUC.
-
-    Resamples that end up single-class are skipped rather than scored, since both
-    metrics are undefined there and substituting 0 or 0.5 would bias the interval.
-    """
-    if n <= 0 or len(y_true) < 2:
-        return None, None
-
-    rng = np.random.default_rng(seed)
-    f1s: list[float] = []
-    aucs: list[float] = []
-    idx = np.arange(len(y_true))
-
-    for _ in range(n):
-        pick = rng.choice(idx, size=len(idx), replace=True)
-        t, p, s = y_true[pick], y_pred[pick], y_score[pick]
-        if len(np.unique(t)) < 2:
-            continue
-        _, _, f1, _ = precision_recall_fscore_support(
-            t, p, labels=[LABEL_PD], average="binary", pos_label=LABEL_PD,
-            zero_division=0.0,
-        )
-        f1s.append(float(f1))
-        aucs.append(float(roc_auc_score(t, s)))
-
-    def pct(values: list[float]) -> tuple[float, float] | None:
-        if len(values) < 50:  # too few usable resamples for a credible interval
-            return None
-        return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))
-
-    return pct(f1s), pct(aucs)
+    out += [
+        "",
+        "Confusion matrix (rows = truth, cols = predicted)",
+        "-" * 60,
+        "                 pred Non-PD   pred PD",
+        f"  true Non-PD    {tn:>11}   {fp:>7}",
+        f"  true PD        {fn:>11}   {tp:>7}",
+        "",
+        "PD-class metrics",
+        "-" * 60,
+        f"  precision  {precision:.3f}",
+        f"  recall     {recall:.3f}",
+        f"  f1         {f1:.3f}",
+        f"  roc-auc    {'undefined' if auc is None else f'{auc:.3f}'}",
+    ]
+    return "\n".join(out)
 
 
 # --------------------------------------------------------------------------- #
@@ -668,35 +470,24 @@ def _bootstrap_cis(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = argparse.ArgumentParser(description="Task 3.2 evaluation over Oncology.csv")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--bootstrap", type=int, default=2000)
-    parser.add_argument("--clean", action="store_true", help="use the clean mock")
-    parser.add_argument("--out", type=Path, default=None, help="write per-record CSV here")
     args = parser.parse_args(argv)
 
-    df = add_random_labels(load(), seed=args.seed)
-    outcome = run_pipeline(df, messy=not args.clean)
-    metrics = evaluate(outcome, bootstrap=args.bootstrap, seed=args.seed)
+    outcome = run_pipeline(add_random_labels(load(), seed=args.seed))
 
-    print("=" * 68)
-    print(f"Task 3.2 — evaluation over Oncology.csv   (seed={args.seed})")
-    print("=" * 68)
+    print("=" * 60)
+    print(f"Task 3.2 - evaluation over Oncology.csv   (seed={args.seed})")
+    print("=" * 60)
     print()
-    print("Parse / validation failures by type")
-    print("-" * 68)
+    print("Failures by type")
+    print("-" * 60)
     print(outcome.tally.summary())
     print()
-    print(metrics.render())
+    print(evaluate(outcome))
     print()
-    print("=" * 68)
     print("Labels are RANDOM by instruction, so these metrics measure the")
     print("evaluation harness, not clinical accuracy.")
-    print("=" * 68)
-
-    if args.out:
-        outcome.frame.to_csv(args.out, index=False)
-        print(f"\nper-record results written to {args.out}")
     return 0
 
 
