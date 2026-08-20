@@ -1499,3 +1499,54 @@ and `README.md` resolves, both entry points run, ruff clean, 110 tests pass.
 **Cost worth recording:** the corpus figures are no longer reproducible from the repository. If
 a reviewer questions the 69% claim there is now no script to re-run. Both files are one
 `git revert` away if that trade turns out to be the wrong one.
+
+### Round 23 — `--pd-prevalence` and `--missing-rate` removed from the CLI
+
+Two `@claude` comments: neither parameter is part of what 3.2 asks for. Correct — the task says
+only "generate a column of random binary labels", with nothing about prevalence or about
+fabricating unlabelled records.
+
+Both flags removed from `main()`. They survive as keyword arguments on `add_random_labels`,
+because the tests need to construct specific distributions, but they are no longer part of the
+program's interface.
+
+**Removing the flags forced the defaults to be reconsidered, and both were wrong.**
+
+`missing_rate` defaulted to **0.1**, so the default run fabricated NaN ground truth for ~7
+records and excluded them from the metrics. That was me exercising the 3.3 code path in the
+default run — but 3.3 is a *written* question, the handling is covered by tests, and injecting
+missing labels distorted the reported counts for no benefit. Now **0.0**: all 90 records carry a
+label, which is the faithful 3.2 setup.
+
+`pd_prevalence` defaulted to **0.05**, inferred from Q1.2c's clinical prevalence. But 3.2 says
+"random binary labels", and the literal reading is a fair coin. Now **0.5**, which is both more
+faithful and a better demonstration: at 5% over 90 records there were only ~4 positives, leaving
+the confusion matrix too sparse to show anything.
+
+**The new numbers are a materially better artefact**, which is the part worth recording:
+
+| | before | after |
+| --- | --- | --- |
+| evaluated / positives | 61 / 4 | 68 / 37 |
+| excluded, no ground truth | 7 | 0 |
+| confusion matrix | 55 / 2 / 2 / 2 | 30 / 1 / 32 / 5 |
+| ROC-AUC | 0.654, CI [0.035, 1.000] | **0.532, CI [0.424, 0.646]** |
+
+The AUC interval now **straddles 0.5**, which is exactly the right result: against labels with
+no relationship to the input, a correct harness must find no discrimination, and the interval
+demonstrates it rather than leaving it assumed. That is far stronger evidence the evaluation
+code works than the previous uninformatively-wide interval was — and an AUC far from 0.5 here
+is precisely how the abstention sign error from round 8 was originally caught.
+
+Precision 0.833 against recall 0.135 also became visible, and is worth naming rather than
+explaining away: the mock abstains on most notes, so it predicts PD rarely, which flatters
+precision and destroys recall. That is the threshold effect 3.3's second question is about,
+now demonstrated by construction instead of argued.
+
+Part 3 updated throughout: the results block, the narrative around it, the
+`add_random_labels` row, the closing paragraph of 3.3, and two stale references — a "[0.000,
+1.000] on 4 positives" citation and a "~5% prevalence" that now read as if describing this run
+rather than the clinical setting.
+
+Verified: every figure in the document matches a fresh run, output byte-identical across two
+runs, ruff clean, 110 tests pass.

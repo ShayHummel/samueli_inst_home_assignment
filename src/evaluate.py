@@ -87,21 +87,27 @@ def add_random_labels(
     df: pd.DataFrame,
     *,
     seed: int = DEFAULT_SEED,
-    pd_prevalence: float = 0.05,
+    pd_prevalence: float = 0.5,
     missing_rate: float = 0.0,
 ) -> pd.DataFrame:
     """Attach a random binary ground-truth column.
 
     Random by instruction: these labels exist to exercise the evaluation code, not
     to measure clinical accuracy. Any metric computed against them is a test of the
-    harness. The report says so explicitly rather than presenting the numbers as
+    harness, and the report says so rather than presenting the numbers as
     performance.
 
-    ``pd_prevalence`` defaults to 0.05 to match the ~5% positive class in Q1.2c,
-    which the EDA found to be realistic for this corpus rather than hypothetical.
+    Both keyword arguments default to the literal reading of the task — "a column of
+    random binary labels", i.e. a fair coin, with every record labelled. Neither is
+    exposed on the command line, because neither is part of what 3.2 asks for; they
+    exist so the tests can construct the distributions they need:
 
-    ``missing_rate`` injects ``NaN`` ground truth, so the "records with no ground
-    truth" path from 3.3 can actually be exercised instead of merely described.
+    * ``pd_prevalence`` — a fair coin also keeps the evaluation non-degenerate. At a
+      5% positive rate over 90 records there are only ~4 positives, which leaves the
+      confusion matrix and PD-class metrics too sparse to demonstrate much.
+    * ``missing_rate`` — injects ``NaN`` ground truth. Off by default: the *handling*
+      of unlabelled records is a 3.3 answer and is covered by tests, so fabricating
+      them in the default run would only distort the reported counts.
     """
     rng = np.random.default_rng(seed)
     labels = rng.binomial(1, pd_prevalence, size=len(df)).astype(float)
@@ -581,24 +587,12 @@ def _bootstrap_cis(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--pd-prevalence", type=float, default=0.05)
-    parser.add_argument(
-        "--missing-rate",
-        type=float,
-        default=0.1,
-        help="fraction of records given NaN ground truth, to exercise the 3.3 path",
-    )
     parser.add_argument("--bootstrap", type=int, default=2000)
     parser.add_argument("--clean", action="store_true", help="use the clean mock")
     parser.add_argument("--out", type=Path, default=None, help="write per-record CSV here")
     args = parser.parse_args(argv)
 
-    df = add_random_labels(
-        load(),
-        seed=args.seed,
-        pd_prevalence=args.pd_prevalence,
-        missing_rate=args.missing_rate,
-    )
+    df = add_random_labels(load(), seed=args.seed)
     outcome = run_pipeline(df, messy=not args.clean)
     metrics = evaluate(outcome, bootstrap=args.bootstrap, seed=args.seed)
 
