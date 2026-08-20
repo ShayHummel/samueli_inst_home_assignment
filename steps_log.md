@@ -1051,3 +1051,43 @@ changing the confidence scale changes the mock's draws.
 - Candidate review of Parts 3 and 4 still pending.
 - PDF export and the appendix decision.
 - `Qwen3.5-27B` / `Nemotron 3 Super 120B-A12B` specs and licences still unverified.
+
+### Comment round 11 — verdict-drift escalation, and a de-duplication pass
+
+Three comments, the third a general instruction rather than a local fix.
+
+**1. Escalation path for verdict drift.** Added: the drift *rate* is a monitored signal. A
+hard failure is the right default while drift is rare; if it proves common, that is evidence
+the contract is wrong rather than the model, and the response is to make drift structurally
+impossible rather than merely detectable — pre-fill `classification` in stage 2's constrained
+decode from stage 1's `VERDICT` line so the formatter cannot express a different label, and
+relax the schema for the fields that genuinely need repair. Noted that failing loudly first is
+what makes the rate measurable; a permissive schema from the outset would have hidden it.
+
+**2 & 3. Repetition.** Both comments pointed at the same defect, so this was treated as a
+document-wide pass rather than two local edits. The cause: each section was written to stand
+alone, so cross-cutting facts (the confidence scale, the injection separation, the four closing
+lines, stage 2 never seeing the note) got restated wherever they were touched.
+
+Method: strip code fences, then count repeated 8-grams as a proxy for restated claims —
+14 before, 10 after, and the 10 remaining are legitimate (the attack string quoted where it is
+discussed, the deliberately parallel B6/B7 questions, and trap examples appearing once as a
+clarifying question and once as a regression case — the same fact serving different purposes,
+not the same argument twice).
+
+Removed:
+- The confidence 0–100 explanation existed in full in both the 2.2 design notes and 2.3.
+  Consolidated in **2.3**, where the schema lives; the design note is now a one-line pointer.
+- **2.2's per-stage prose restated the pipeline table sitting directly above it** (inputs,
+  outputs, tiers, the six audit checks, the validator error text). Rewritten as "what each
+  prompt carries, *beyond* the table" — only the content the table cannot express.
+- 2.7's first two defences restated a design note verbatim; collapsed to a pointer and the
+  layers renumbered 1–6.
+- "A defence that is not tested is an assumption" appeared in both 2.5 and 2.7; kept once.
+- The audit's "different model family" requirement duplicated the table's own tier cell.
+
+Net 4,720 → 4,449 words, and that *includes* the escalation clause added for comment 1, so
+roughly 370 words of duplication went. 97 tests still pass; no code touched this round.
+
+Recorded as a standing preference in memory so future documents get the sweep before handover
+rather than after review.
