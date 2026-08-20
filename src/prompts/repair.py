@@ -7,7 +7,7 @@ corrected object.
 Two constraints make this a repair rather than a second opinion:
 
 * It receives the **validator's error text**, not a vague "that was wrong". A
-  model that is told ``confidence_score: input should be less than or equal to 1``
+  model that is told ``confidence_score: input should be less than or equal to 100``
   can fix that; a model told "invalid JSON" guesses.
 * It is forbidden from changing clinical content. Repair exists to fix
   *structure*. If a repair call were free to revise the verdict, a formatting
@@ -36,7 +36,7 @@ Rules:
   meaning: keep the same classification, the same evidence quotes character-for-character,
   and the same reasoning. You are correcting format, not revising a judgement.
 - If a required field is missing and its value cannot be recovered from the invalid output,
-  use the most conservative valid value: "Non-PD" for classification, 0.0 for
+  use the most conservative valid value: "Non-PD" for classification, 0 for
   confidence_score, an empty array for supporting_evidence, and for clinical_reasoning a
   string stating that the value could not be recovered.
 - Never invent an evidence quote. If no quote is recoverable, return an empty array.

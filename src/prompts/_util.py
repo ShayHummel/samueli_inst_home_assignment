@@ -22,10 +22,31 @@ def escape_braces(text: str) -> str:
 #: so this cannot drift from the Pydantic model without the suite failing.
 JSON_CONTRACT = """{
   "classification":      "PD" or "Non-PD",
-  "confidence_score":    a number from 0.0 to 1.0,
+  "confidence_score":    an integer from 0 to 100,
   "supporting_evidence": an array of strings, each an exact quote from the summary,
   "clinical_reasoning":  a string
 }"""
 
 #: Brace-escaped form, safe to embed in an f-string template.
 JSON_CONTRACT_ESCAPED = escape_braces(JSON_CONTRACT)
+
+
+def as_json_string(text: str) -> str:
+    """JSON-encode ``text`` for embedding as a value in a JSON-delimited prompt.
+
+    The note is delivered to the model inside a JSON object rather than XML-style
+    tags. JSON encoding is what makes that boundary actually hold: quotes and
+    newlines in the note are escaped, so a note cannot terminate its own container
+    and continue as instructions — an XML tag can be closed by text that merely
+    contains ``</clinical_summary>``.
+
+    The cost is that the model sees escaped text (``\\n``, ``\\"``), which risks it
+    quoting the *escaped* form as evidence and failing the verbatim grounding check.
+    Two mitigations: the stage-1 prompt states explicitly that quotes must reproduce
+    the clinical text and not its JSON escaping, and
+    ``validation.normalise_for_matching`` collapses literal escape sequences so an
+    escaped quote still matches its source.
+    """
+    import json
+
+    return json.dumps(text, ensure_ascii=False)

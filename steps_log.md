@@ -974,3 +974,80 @@ All four parts answered. 92 tests passing. Every relative link across `results/`
   `src/`, so a reviewer reading the PDF alone would not see them).
 - Verification still outstanding from session 2: `Qwen3.5-27B` and
   `Nemotron 3 Super 120B-A12B` model names, parameter counts, architectures and licences.
+
+---
+
+## 2026-08-20 — Session 10: Part 2 review comments (17 comments)
+
+Seventeen `@claude` comments on `part2_prompt_design.md`. Five changed code, not just prose.
+
+### Code changes
+1. **Confidence moved to a 0–100 integer scale** (`src/schema.py`, all four prompts,
+   `src/evaluate.py`, tests). Rationale accepted: LLMs emit coarse integer percentages far
+   more consistently than fine-grained floats, which cluster on round values and imply
+   resolution the model lacks. `probability_of_pd` now divides by 100, so no metric ever
+   receives a 0–100 value. **Flagged as a deviation** — the assignment states
+   `"confidence_score": 0.0-1.0` literally, so 2.3 now shows both the stated and the
+   implemented schema side by side with the reason and a one-line reversal path. This is a
+   grading-surface risk the candidate accepted knowingly.
+2. **Note delivery switched from XML tags to a JSON string value.** `prompts/_util.py`
+   gained `as_json_string`; stage 1 and the auditor now receive
+   `{"clinical_summary": "..."}`. This is a genuine security improvement rather than
+   cosmetic: an XML tag can be closed by note text that merely contains
+   `</clinical_summary>`, whereas a JSON string escapes its own quotes and newlines so the
+   note cannot terminate its container and continue as instructions. **The cost is real** —
+   the model now sees escape sequences and could quote the escaped form, breaking verbatim
+   grounding. Two mitigations, both tested: the stage-1 prompt states that quotes must
+   reproduce clinical text and not its JSON escaping, and `normalise_for_matching` collapses
+   literal escape sequences before comparison.
+3. **Repair scope narrowed** — prompted by the candidate's question "but stage 4 repairs such
+   cases, no?" about verdict drift. The answer is no, and the code did not previously enforce
+   it: the loop retried *every* failure type. Added `REPAIRABLE_FAILURES`, which excludes
+   `VERDICT_DRIFT`. Reasoning: repair may not change clinical content, so it cannot
+   legitimately resolve a verdict disagreement — and if it could, a formatting retry would be
+   making a clinical decision. Retrying also burned two calls to reach the same failure.
+   `EVIDENCE_NOT_IN_SOURCE` stays repairable, since a paraphrased quote is a formatting error.
+   A good question that found a real defect.
+4. **Injection asserted by test, not assumed.** Added
+   `test_injected_instruction_never_reaches_stage_2` plus a companion checking the auditor's
+   prompt frames the note as untrusted. Rationale, now stated in 2.7: the two-stage split is
+   a *security* property, and a security property left as prose is an assumption.
+5. **New tests for the JSON delivery** — that the note arrives escaped, and that a quote from
+   a multi-line note containing quotation marks still grounds. The second is the one that
+   matters: it pins the escaping risk introduced by change 2.
+
+Suite: 92 → 97 tests, all passing. Part 3.2's reported figures were regenerated, since
+changing the confidence scale changes the mock's draws.
+
+### Documentation changes
+- **A5 reframed** rather than deleted. The candidate doubted a question about radiological
+  confirmation belonged in a text-focused assignment. Kept because it *is* a text question:
+  the summaries contain both imaging sentences and clinical-deterioration sentences, the
+  assignment's own examples include "progression on imaging" and "PR on imaging", and the
+  prompt must know which sentence types suffice alone. Rewritten to make that explicit.
+- **D13 paragraph rewritten in the requested form** — "Ambiguity is defined as …" followed by
+  a four-row table of the expected output. The prose version buried the definition inside its
+  own justification.
+- **Pipeline table gained an Output column**, `Input` made explicit ("Both" → the three
+  specific inputs), tiers named for every stage, and **stage 5 added to the table** — it had
+  existed only in prose, which is why the candidate could not find it.
+- **Four lines named** (`VERDICT`, `CONFIDENCE`, `EVIDENCE`, `REASONING`) wherever "the four
+  closing lines" was referenced abstractly.
+- **2.4 scope clarified** — a genuine confusion in my writing that the candidate caught: the
+  nine layers apply to **stage 2 only**. Stage 1 is *supposed* to emit free prose and is
+  deliberately unconstrained, so "layer 1 makes malformed output impossible" was wrong as
+  written. Now stated up front, with stage 1's much weaker four-line contract noted separately.
+- **GBNF removed** in favour of JSON-Schema-constrained decoding, per the request.
+- **2.6 shortened** from ~560 to ~420 words: the nine-row table became three grouped bullets
+  (model / runtime / experiment), keeping the batching point that mattered.
+- **What temperature samples stated explicitly**: at each step the model produces a
+  distribution over the whole vocabulary for the *next token*; temperature 0 takes the argmax,
+  temperature > 0 draws from the distribution, so one different token early changes everything
+  after it including the label.
+- Verbatim-copying wording quoted from both prompts, so the mechanism is visible rather than
+  asserted; Gemini observation folded into the why-split argument.
+
+### Open
+- Candidate review of Parts 3 and 4 still pending.
+- PDF export and the appendix decision.
+- `Qwen3.5-27B` / `Nemotron 3 Super 120B-A12B` specs and licences still unverified.

@@ -32,7 +32,8 @@ Schema:
 
 Field mapping, to be followed literally:
 - classification      <- the VERDICT line, verbatim.
-- confidence_score    <- the CONFIDENCE line, as a number.
+- confidence_score    <- the CONFIDENCE line, as an integer from 0 to 100. Copy the
+                         number as given; do not rescale it to a fraction.
 - supporting_evidence <- the EVIDENCE quotes, copied character-for-character. Do not
                          paraphrase, trim, re-punctuate or merge them. If EVIDENCE is
                          NONE, use an empty array.

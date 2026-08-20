@@ -46,6 +46,28 @@ class FailureType(str, Enum):
     SELF_CHECK_REJECTED = "self_check_rejected"
 
 
+#: Failure types a repair call can plausibly fix. All of them are *structural*:
+#: the model produced the right judgement in the wrong shape.
+#:
+#: ``VERDICT_DRIFT`` is deliberately **excluded**. Repair is forbidden from changing
+#: clinical content, so it cannot legitimately resolve a disagreement about the
+#: verdict — and if it were allowed to, a formatting retry would be silently making a
+#: clinical decision. Drift means the formatter is unreliable on this record, which is
+#: a fault to surface, not to paper over. Retrying it would also burn two calls to
+#: arrive at the same failure.
+REPAIRABLE_FAILURES = frozenset(
+    {
+        FailureType.NO_JSON_FOUND,
+        FailureType.JSON_DECODE_ERROR,
+        FailureType.NOT_A_JSON_OBJECT,
+        FailureType.SCHEMA_VALIDATION_ERROR,
+        # Repairable because a paraphrased quote is a formatting error: the repair
+        # prompt tells the model to copy quotes character-for-character.
+        FailureType.EVIDENCE_NOT_IN_SOURCE,
+    }
+)
+
+
 @dataclass(frozen=True)
 class Stage1Verdict:
     """The machine-readable tail of a stage 1 response."""
@@ -152,7 +174,7 @@ def parse_stage1_verdict(stage1_output: str) -> Stage1Verdict | None:
         confidence = float(confidences[-1]) if confidences else 0.0
     except ValueError:
         confidence = 0.0
-    confidence = min(max(confidence, 0.0), 1.0)
+    confidence = min(max(confidence, 0.0), 100.0)
 
     evidence: tuple[str, ...] = ()
     ev_matches = _EVIDENCE_RE.findall(stage1_output)
@@ -223,6 +245,10 @@ def parse_self_check(text: str) -> SelfCheckOutcome | None:
 # --------------------------------------------------------------------------- #
 
 _WS_RE = re.compile(r"\s+")
+# Literal JSON escape sequences, collapsed so a quote reproduced in escaped form
+# still matches its source. See prompts._util.as_json_string.
+_JSON_ESCAPES = ((r"\n", " "), (r"\t", " "), (r"\r", " "), (r'\"', '"'), (r"\\", "\\"))
+
 _PUNCT_MAP = str.maketrans(
     {
         "‘": "'", "’": "'", "‚": "'", "‛": "'",
@@ -242,6 +268,8 @@ def normalise_for_matching(text: str) -> str:
     positive, which is precisely the error this pipeline exists to avoid.
     """
     text = unicodedata.normalize("NFKC", text)
+    for escaped, plain in _JSON_ESCAPES:
+        text = text.replace(escaped, plain)
     text = text.translate(_PUNCT_MAP)
     text = _WS_RE.sub(" ", text)
     return text.strip().casefold()

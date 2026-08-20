@@ -62,13 +62,8 @@ ISSUES: <semicolon-separated list of problems found, or NONE>
 SUPPORTED must be exactly yes or no. CONFIDENCE_ASSESSMENT must be exactly one of
 appropriate, overconfident, or underconfident."""
 
-USER_TEMPLATE = """<clinical_summary>
-{note_text}
-</clinical_summary>
-
-<classification_output>
-{candidate_json}
-</classification_output>
+USER_TEMPLATE = """{{"clinical_summary": {note_json},
+ "classification_output": {candidate_json}}}
 
 Audit the classification against the summary, then give the three final lines."""
 
@@ -76,5 +71,5 @@ PROMPT = ChatPromptTemplate.from_messages(
     [("system", SYSTEM_TEMPLATE), ("human", USER_TEMPLATE)]
 )
 
-#: Variables the caller must supply.
-INPUT_VARIABLES = ("note_text", "candidate_json")
+#: Variables the caller must supply. ``note_json`` via ``_util.as_json_string``.
+INPUT_VARIABLES = ("note_json", "candidate_json")

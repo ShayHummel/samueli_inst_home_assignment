@@ -30,7 +30,7 @@ NOTE = (
 
 VALID_JSON = """{
   "classification": "PD",
-  "confidence_score": 0.91,
+  "confidence_score": 91,
   "supporting_evidence": ["New hepatic lesions and enlargement of the retroperitoneal nodes"],
   "clinical_reasoning": "Imaging documents new and enlarging lesions."
 }"""
@@ -111,7 +111,8 @@ def test_valid_output_passes():
 
 
 def test_confidence_out_of_range_is_a_schema_failure():
-    bad = VALID_JSON.replace("0.91", "1.4")
+    """Confidence is on a 0-100 scale, so 140 is out of range."""
+    bad = VALID_JSON.replace("91", "140")
     report = verify_output(bad, NOTE, Classification.PD)
     assert not report
     assert report.failure_type is FailureType.SCHEMA_VALIDATION_ERROR
@@ -122,7 +123,7 @@ def test_pd_without_evidence_is_rejected():
     with pytest.raises(ValueError, match="requires at least one supporting_evidence"):
         ClinicalClassification(
             classification=Classification.PD,
-            confidence_score=0.8,
+            confidence_score=80,
             supporting_evidence=[],
             clinical_reasoning="It looks like progression.",
         )
@@ -194,7 +195,7 @@ def test_abstention_signature_is_recognised():
 def test_confident_non_pd_is_not_an_abstention():
     record = ClinicalClassification(
         classification=Classification.NON_PD,
-        confidence_score=0.95,
+        confidence_score=95,
         supporting_evidence=["no evidence of progression"],
         clinical_reasoning="Explicit denial of progression.",
     )
@@ -210,7 +211,7 @@ STAGE1_TAIL = """1. LOCATE. ...prose...
 6. DECIDE. The current status is stable disease.
 
 VERDICT: Non-PD
-CONFIDENCE: 0.88
+CONFIDENCE: 88
 EVIDENCE: "stable disease (SD)" | "no new lesions"
 REASONING: Current status is SD; the 2023 PD is historical."""
 
@@ -219,13 +220,13 @@ def test_stage1_tail_parses():
     v = parse_stage1_verdict(STAGE1_TAIL)
     assert v is not None
     assert v.classification is Classification.NON_PD
-    assert v.confidence == pytest.approx(0.88)
+    assert v.confidence == pytest.approx(88.0)
     assert v.evidence == ("stable disease (SD)", "no new lesions")
     assert "historical" in v.reasoning
 
 
 def test_stage1_evidence_none_yields_empty_tuple():
-    v = parse_stage1_verdict("VERDICT: Non-PD\nCONFIDENCE: 0.1\nEVIDENCE: NONE\nREASONING: nothing.")
+    v = parse_stage1_verdict("VERDICT: Non-PD\nCONFIDENCE: 10\nEVIDENCE: NONE\nREASONING: nothing.")
     assert v is not None and v.evidence == ()
 
 
@@ -234,12 +235,12 @@ def test_stage1_missing_verdict_returns_none():
 
 
 def test_stage1_confidence_is_clamped():
-    v = parse_stage1_verdict("VERDICT: PD\nCONFIDENCE: 4.2\nEVIDENCE: NONE\nREASONING: x")
-    assert v is not None and v.confidence == 1.0
+    v = parse_stage1_verdict("VERDICT: PD\nCONFIDENCE: 420\nEVIDENCE: NONE\nREASONING: x")
+    assert v is not None and v.confidence == 100.0
 
 
 def test_stage1_last_block_wins_when_restated():
-    text = STAGE1_TAIL + "\n\nVERDICT: PD\nCONFIDENCE: 0.7\nEVIDENCE: NONE\nREASONING: revised."
+    text = STAGE1_TAIL + "\n\nVERDICT: PD\nCONFIDENCE: 70\nEVIDENCE: NONE\nREASONING: revised."
     v = parse_stage1_verdict(text)
     assert v is not None and v.classification is Classification.PD
 

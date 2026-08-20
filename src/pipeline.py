@@ -19,9 +19,16 @@ from dataclasses import dataclass, field
 
 from langchain_core.messages import BaseMessage
 
-from .prompts import REPAIR_PROMPT, SELF_CHECK_PROMPT, STAGE1_PROMPT, STAGE2_PROMPT
+from .prompts import (
+    REPAIR_PROMPT,
+    SELF_CHECK_PROMPT,
+    STAGE1_PROMPT,
+    STAGE2_PROMPT,
+    as_json_string,
+)
 from .schema import ClinicalClassification
 from .validation import (
+    REPAIRABLE_FAILURES,
     FailureTally,
     FailureType,
     SelfCheckOutcome,
@@ -100,7 +107,9 @@ def classify_note(
         return result
 
     # -- Stage 1: reason ---------------------------------------------------- #
-    stage1_raw = reasoning_llm(STAGE1_PROMPT.format_messages(note_text=note_text))
+    stage1_raw = reasoning_llm(
+        STAGE1_PROMPT.format_messages(note_json=as_json_string(note_text))
+    )
     transcript["stage1"] = stage1_raw
 
     verdict = parse_stage1_verdict(stage1_raw)
@@ -122,7 +131,14 @@ def classify_note(
     # -- Stage 3: validate, and Stage 4: repair on failure ------------------ #
     report = verify_output(stage2_raw, note_text, verdict)
     attempts = 0
-    while not report.ok and attempts < max_repair_attempts:
+    # Only structural failures are retried. A VERDICT_DRIFT is not repairable:
+    # repair may not change clinical content, so it cannot resolve a disagreement
+    # about the verdict, and retrying would burn calls to reach the same failure.
+    while (
+        not report.ok
+        and report.failure_type in REPAIRABLE_FAILURES
+        and attempts < max_repair_attempts
+    ):
         attempts += 1
         stage2_raw = structuring_llm(
             REPAIR_PROMPT.format_messages(
@@ -152,7 +168,7 @@ def classify_note(
     if audit_llm is not None:
         audit_raw = audit_llm(
             SELF_CHECK_PROMPT.format_messages(
-                note_text=note_text,
+                note_json=as_json_string(note_text),
                 candidate_json=classification.model_dump_json(indent=2),
             )
         )
@@ -229,7 +245,7 @@ if __name__ == "__main__":  # pragma: no cover - illustrative walkthrough
             "5. RESOLVE. No conflict.\n"
             "6. DECIDE.\n\n"
             "VERDICT: PD\n"
-            "CONFIDENCE: 0.92\n"
+            "CONFIDENCE: 92\n"
             'EVIDENCE: "new hepatic lesions, consistent with progressive disease"\n'
             "REASONING: Current imaging documents new hepatic lesions."
         )
@@ -237,7 +253,7 @@ if __name__ == "__main__":  # pragma: no cover - illustrative walkthrough
     def fake_structurer(_messages: Sequence[BaseMessage]) -> str:
         return (
             "Sure, here is the JSON:\n```json\n"
-            '{"classification": "PD", "confidence_score": 0.92,\n'
+            '{"classification": "PD", "confidence_score": 92,\n'
             ' "supporting_evidence": ["new hepatic lesions, consistent with progressive disease"],\n'
             ' "clinical_reasoning": "Current imaging documents new hepatic lesions."}\n'
             "```\nHope that helps!"

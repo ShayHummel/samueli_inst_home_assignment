@@ -34,7 +34,7 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, roc_auc_score
 
 from .eda import load
-from .schema import ABSTENTION_CONFIDENCE_CEILING, Classification
+from .schema import ABSTENTION_CONFIDENCE_CEILING, CONFIDENCE_MAX, Classification
 from .validation import FailureTally, FailureType, verify_output
 
 #: Label encoding fixed by the assignment: 0 = Non-PD, 1 = PD.
@@ -139,7 +139,7 @@ def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     if mode == "invalid":
         return body.replace('",\n', '",,\n', 1)
     if mode == "out_of_range":
-        bad = dict(payload, confidence_score=round(float(rng.uniform(1.01, 1.9)), 2))
+        bad = dict(payload, confidence_score=float(rng.integers(101, 190)))
         return json.dumps(bad, indent=2)
     return json.dumps(dict(payload, model_version="mock-0.1"), indent=2)
 
@@ -171,7 +171,7 @@ def _draw_payload(text: str, rng: np.random.Generator) -> dict:
     if quote is None:
         return {
             "classification": Classification.NON_PD.value,
-            "confidence_score": round(float(rng.uniform(0.05, ABSTENTION_CONFIDENCE_CEILING)), 2),
+            "confidence_score": float(rng.integers(5, int(ABSTENTION_CONFIDENCE_CEILING) + 1)),
             "supporting_evidence": [],
             "clinical_reasoning": "The summary contains no assessable statement about "
             "disease status or treatment response.",
@@ -180,7 +180,7 @@ def _draw_payload(text: str, rng: np.random.Generator) -> dict:
     is_pd = bool(rng.random() < 0.25)
     return {
         "classification": (Classification.PD if is_pd else Classification.NON_PD).value,
-        "confidence_score": round(float(rng.uniform(0.60, 0.97)), 2),
+        "confidence_score": float(rng.integers(60, 98)),
         "supporting_evidence": [quote],
         "clinical_reasoning": (
             "Imaging findings quoted above document disease progression."
@@ -301,7 +301,7 @@ UNINFORMATIVE_SCORE = 0.5
 def probability_of_pd(
     predicted_label: int, confidence: float, *, is_abstention: bool = False
 ) -> float:
-    """Convert "confidence in my chosen label" into P(PD).
+    """Convert "confidence in my chosen label" (0-100) into P(PD) (0-1).
 
     The schema's ``confidence_score`` is confidence in whichever label the model
     picked, not the probability of the positive class. Passing it straight to
@@ -323,7 +323,9 @@ def probability_of_pd(
     """
     if is_abstention:
         return UNINFORMATIVE_SCORE
-    return confidence if predicted_label == LABEL_PD else 1.0 - confidence
+    # Confidence is reported on 0-100; a probability must be on 0-1.
+    p_chosen = confidence / CONFIDENCE_MAX
+    return p_chosen if predicted_label == LABEL_PD else 1.0 - p_chosen
 
 
 # --------------------------------------------------------------------------- #

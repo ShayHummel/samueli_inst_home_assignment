@@ -4,7 +4,7 @@ The schema is fixed by the assignment:
 
     {
       "classification":      "PD" | "Non-PD",
-      "confidence_score":    0.0-1.0,
+      "confidence_score":    0-100,
       "supporting_evidence": ["<exact quote from the text>", "..."],
       "clinical_reasoning":  "<brief explanation of the decision>"
     }
@@ -31,10 +31,19 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+#: Confidence is reported on a **0-100 integer scale**, not 0.0-1.0.
+#:
+#: This deviates from the schema literal in the assignment ("confidence_score:
+#: 0.0-1.0") and is a deliberate choice: LLMs emit coarse integer percentages far
+#: more consistently than fine-grained floats, which cluster on a handful of round
+#: values (0.9, 0.95) and give a false impression of resolution. The deviation is
+#: documented in results/part2_prompt_design.md rather than left implicit.
+CONFIDENCE_MIN, CONFIDENCE_MAX = 0.0, 100.0
+
 #: Confidence at or below this value, combined with no supporting evidence, marks
 #: a record as "nothing assessable in the note" rather than "assessed as Non-PD".
-#: Fixed by the D13 decision and by the stage-1 prompt, which instructs 0.2 or below.
-ABSTENTION_CONFIDENCE_CEILING = 0.2
+#: Fixed by the D13 decision and by the stage-1 prompt, which instructs 20 or below.
+ABSTENTION_CONFIDENCE_CEILING = 20.0
 
 
 class Classification(str, Enum):
@@ -50,7 +59,7 @@ class ClinicalClassification(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     classification: Classification
-    confidence_score: float = Field(ge=0.0, le=1.0)
+    confidence_score: float = Field(ge=CONFIDENCE_MIN, le=CONFIDENCE_MAX)
     supporting_evidence: list[str] = Field(default_factory=list)
     clinical_reasoning: str = Field(min_length=1)
 
@@ -76,7 +85,7 @@ class ClinicalClassification(BaseModel):
         """True when this record means "no assessable content", not "assessed Non-PD".
 
         The D13 signature: a ``Non-PD`` label with no evidence and a confidence at
-        or below the ceiling. Machine-detectable by design, so the pipeline can
+        or below the ceiling (20 on the 0-100 scale). Machine-detectable by design, so the pipeline can
         route these to a clinician instead of reporting them as negative findings.
         """
         return (

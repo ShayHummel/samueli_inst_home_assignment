@@ -117,17 +117,18 @@ def test_messy_mock_produces_more_than_one_shape():
 
 
 def test_pd_confidence_maps_directly():
-    assert probability_of_pd(LABEL_PD, 0.9) == pytest.approx(0.9)
+    """Confidence arrives on 0-100; P(PD) must come back on 0-1."""
+    assert probability_of_pd(LABEL_PD, 90) == pytest.approx(0.9)
 
 
 def test_non_pd_confidence_is_inverted():
-    assert probability_of_pd(LABEL_NON_PD, 0.9) == pytest.approx(0.1)
+    assert probability_of_pd(LABEL_NON_PD, 90) == pytest.approx(0.1)
 
 
 def test_abstention_is_scored_as_uninformative():
-    """The bug this guards: 1 - 0.1 = 0.9 would score "no information" as "likely PD"."""
-    naive = 1.0 - 0.1
-    actual = probability_of_pd(LABEL_NON_PD, 0.1, is_abstention=True)
+    """The bug this guards: 1 - 0.10 = 0.9 would score "no information" as "likely PD"."""
+    naive = 1.0 - (10 / 100)
+    actual = probability_of_pd(LABEL_NON_PD, 10, is_abstention=True)
     assert actual == pytest.approx(UNINFORMATIVE_SCORE)
     assert actual != pytest.approx(naive)
 

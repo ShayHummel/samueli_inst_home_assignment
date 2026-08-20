@@ -11,7 +11,7 @@ One module per pipeline stage. Each exposes ``SYSTEM_TEMPLATE``,
 from __future__ import annotations
 
 from . import repair, self_check, stage1_reasoning, stage2_structuring
-from ._util import JSON_CONTRACT, escape_braces
+from ._util import JSON_CONTRACT, as_json_string, escape_braces
 
 STAGE1_PROMPT = stage1_reasoning.PROMPT
 STAGE2_PROMPT = stage2_structuring.PROMPT
@@ -24,6 +24,7 @@ __all__ = [
     "SELF_CHECK_PROMPT",
     "STAGE1_PROMPT",
     "STAGE2_PROMPT",
+    "as_json_string",
     "escape_braces",
     "repair",
     "self_check",

@@ -172,7 +172,7 @@ case here, not an edge case.
 | Step | Function | Notes |
 | --- | --- | --- |
 | Random ground truth | `add_random_labels` | Seeded; `pd_prevalence=0.05` to match Q1.2c, which the EDA found realistic for this corpus. `missing_rate` injects NaN labels so the 3.3 path is exercised, not just described. |
-| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. |
+| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. Confidence is drawn on the **0–100** scale used from Part 2.2 onward. |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Parse and validate | `verify_output` (Part 2) | Reuses the Part-2 validator rather than reimplementing it. |
 | Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC, bootstrap CIs, coverage. |
@@ -211,17 +211,17 @@ Parse / validation failures by type        Record accounting
   valid:   68                                excluded - parse/validation failed 22
   failed:  22                                excluded - no ground truth          7
     no_json_found:           11              evaluated                          61
-    schema_validation_error:  8              of which PD (positive class)         4
-    json_decode_error:        3              abstentions among valid outputs     48
+    schema_validation_error:  7              of which PD (positive class)         4
+    json_decode_error:        4              abstentions among valid outputs     48
 
 Confusion matrix                           PD-class metrics
-                pred Non-PD  pred PD        precision  0.667
-  true Non-PD            56        1        recall     0.500
-  true PD                 2        2        f1         0.571  95% CI [0.000, 1.000]
-                                            roc-auc    0.704  95% CI [0.267, 1.000]
+                pred Non-PD  pred PD        precision  0.500
+  true Non-PD            55        2        recall     0.500
+  true PD                 2        2        f1         0.500  95% CI [0.000, 0.857]
+                                            roc-auc    0.654  95% CI [0.035, 1.000]
 
 Selective prediction (abstentions excluded)
-  committed on 18 of 61 (30% coverage)   roc-auc 0.922
+  committed on 18 of 61 (30% coverage)   roc-auc 0.689
 ```
 
 **These numbers measure the harness, not clinical accuracy** — the labels are random by
@@ -229,8 +229,9 @@ instruction, so no relationship to the predictions exists to be found. The outpu
 explicitly, because a table of metrics with no such caveat invites exactly the
 misinterpretation Q1.2f is about.
 
-What is worth reading here is the **shape**: F1's 95% CI is `[0.000, 1.000]`. With 4 positive
-cases the point estimate carries essentially no information, which is the Q1.2f "small or
+What is worth reading here is the **shape**: F1's 95% CI is `[0.000, 0.857]` and ROC-AUC's is
+`[0.035, 1.000]` — the latter spanning almost the entire possible range. With 4 positive cases
+the point estimates carry essentially no information, which is the Q1.2f "small or
 unrepresentative test set" cause demonstrated on our own evaluation rather than asserted about
 someone else's. This is also why CIs are computed by default rather than offered as an option.
 
@@ -314,7 +315,8 @@ huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
 7. **Only then change the model.** Threshold, calibration and label quality account for this
    pattern far more often than model capacity does, and all three are cheaper to fix.
 
-This pipeline exhibits the same pattern for a related reason: committed-subset ROC-AUC of
-**0.922** against an F1 of **0.571**. There the driver is abstention — nearly 70% of records
-carry no evidence, so the ranking over the committed subset is far better than any single
-decision rule applied across the whole corpus can express.
+This pipeline shows a muted version of the same pattern: committed-subset ROC-AUC of **0.689**
+against an F1 of **0.500**. The driver is abstention — nearly 70% of records carry no evidence,
+so ranking over the committed subset is better than any single decision rule applied across the
+whole corpus can express. (With random labels the effect is small and inside the confidence
+intervals; the mechanism is the point, not the magnitude.)
