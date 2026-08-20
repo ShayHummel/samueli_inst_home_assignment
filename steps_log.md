@@ -1978,3 +1978,40 @@ Mock section: 165 lines, down from roughly 260 spread across seven functions. Tw
 rewritten on stale premises — one asserted abstention followed from note vocabulary, the other
 varied a retry budget that no longer exists — and `test_every_scenario_produces_its_intended_outcome`
 already covers what the second was reaching for. 113 tests, ruff clean, byte-identical output.
+
+---
+
+## Open items — next session
+
+Consolidated so a session can resume cold. Nothing here blocks anything else.
+
+### Awaiting candidate review
+1. **Part 3.3 — the two written questions.** Not yet reviewed. Both answers have been *edited*
+   several times since they were written (reported figures refreshed as the mock changed, and a
+   "~5% prevalence" reference disambiguated to mean the clinical setting rather than this run),
+   so they are worth reading against the current numbers:
+   - *"Records with no ground truth came through your SQL…"* — note that the default run now
+     injects **no** missing labels, so the answer describes handling that the tests exercise
+     rather than the headline run.
+   - *"ROC-AUC 0.94 but F1 0.61"* — the closing paragraph ties the argument to this pipeline's
+     own figures (ROC-AUC 0.506 against F1 0.158), which move whenever the mock is retuned.
+2. **Part 4 (E.1–E.3).** Complete but never reviewed; Parts 2 and 3 both changed materially
+   under review, so this one has had no equivalent pass.
+
+### Awaiting a decision
+3. **`src/demo.py`** (362 lines). The per-stage walkthrough was an explicit request, but
+   `tests/` now asserts the same behaviours — repair, drift, abstention, injection confinement.
+   Keep as a reviewer-facing artifact, or delete as duplication?
+4. **PDF appendix.** The prompts live only in `src/prompts/`, while Logistics asks for a PDF
+   containing "the theoretical answers **and prompt design**". A reviewer reading only the PDF
+   would not see them. Suggested fix: generate an appendix from the four prompt modules at
+   export time, preserving one source of truth.
+
+### Needs external verification
+5. **`Qwen3.5-27B` and `Nemotron 3 Super 120B-A12B` in Q1.1a** — model names, parameter counts,
+   dense-vs-MoE architecture, context lengths, and the licence strings. Unverifiable against my
+   knowledge cutoff. The Qwen weakness cell asserts the model is **dense**, which inverts if it
+   is in fact MoE. `gpt-oss-120b`'s figures were confirmed.
+
+### Candidate's own housekeeping
+6. `.idea/modules.xml` modified, and `stash@{0}` left from the git-identity rewrite.
