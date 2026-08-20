@@ -1172,3 +1172,45 @@ what allows it to be permissive about interpretation.
 New `tests/test_prompt_content.py` (6 tests) pins these decisions, since an edit reversing them
 would break nothing else in the suite. Assertions are whitespace-normalised so they survive
 re-wrapping the prompt text. 100 → 106 tests.
+
+### Comment round 14 — dependency and import hygiene
+
+PyCharm flagged two things and the candidate spotted a third. All real, plus two more found by
+auditing rather than eyeballing.
+
+**Reported:**
+1. **`numpy` imported but not declared.** It was arriving transitively via pandas/scikit-learn
+   while `src/evaluate.py` and `tests/test_evaluate.py` import it directly. That works until a
+   dependency drops it, at which point the build breaks for a reason nothing points at. Now an
+   explicit dependency.
+2. **`pandas-stubs` missing**, so the editor had no type information for pandas. Added to the
+   dev group.
+3. **`FailureType` imported but unused in `src/evaluate.py`.** Confirmed and removed — it was
+   the only unused import in the project.
+
+**Found while auditing:**
+4. **`sqlalchemy` was declared but imported nowhere.** It sat in a `postgres` optional extra
+   alongside `psycopg`, which is already in the dev group because the SQL tests use it. So the
+   whole extra was dead weight: one package never used, one duplicated. Extra removed, and the
+   README claim about it corrected.
+5. **An ambiguous implicit string concatenation** inside a list literal in `evaluate.py`
+   (ruff `ISC004`) — legitimate Python, but visually indistinguishable from a missing comma.
+   Parenthesised.
+
+**Made checkable rather than fixed once.** Added `ruff` to the dev group with a config in
+`pyproject.toml` selecting `E, F, I, UP, B, SIM, ISC`. `F` is the family that would have caught
+items 1 and 3 without anyone reading the file; `I` pins import order so diffs never churn on
+it. `uv run ruff check .` now passes clean and is documented in the README quick start, so this
+class of problem is a gate rather than a review finding.
+
+Clearing the config also surfaced `UP042`: `Classification` and `FailureType` both used the
+`class X(str, Enum)` mixin rather than `enum.StrEnum`. Switched. Beyond modernisation it
+removes a genuine footgun — for a str-mixin enum `str(member)` returns `"Classification.PD"`,
+whereas `StrEnum` returns `"PD"`. The code already used `.value` explicitly everywhere, so
+behaviour is unchanged; verified by the suite and by re-running both entry points, and the
+metrics are identical.
+
+**A scripted audit** now backs the claim rather than a spot check: parse every file under
+`src/` and `tests/`, collect the third-party import roots, and diff against the declared
+dependencies. Result: nothing missing, and the only declared-but-unimported packages are
+`ruff` and `pandas-stubs`, which are tooling and never imported by design. 106 tests still pass.

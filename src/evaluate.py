@@ -31,11 +31,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, roc_auc_score
+from sklearn.metrics import (
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
 
 from .eda import load
 from .schema import RAW_ABSTENTION_CONFIDENCE_CEILING, Classification
-from .validation import FailureTally, FailureType, verify_output
+from .validation import FailureTally, verify_output
 
 #: Label encoding fixed by the assignment: 0 = Non-PD, 1 = PD.
 LABEL_NON_PD, LABEL_PD = 0, 1
@@ -388,8 +392,10 @@ class Metrics:
             "",
             "Selective prediction (abstentions excluded)",
             "-" * 68,
-            f"  committed on   {self.n_committed} of {self.n_evaluated} "
-            f"({coverage:.0%} coverage)",
+            (
+                f"  committed on   {self.n_committed} of {self.n_evaluated} "
+                f"({coverage:.0%} coverage)"
+            ),
             f"  roc-auc        {_fmt(self.roc_auc_committed)}",
         ]
         if self.n_positive < 10:

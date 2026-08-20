@@ -31,7 +31,7 @@ meaning: it is the abstention signature agreed for D13. See ``is_abstention``.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -50,7 +50,7 @@ ABSTENTION_CONFIDENCE_CEILING = 0.2
 RAW_ABSTENTION_CONFIDENCE_CEILING = ABSTENTION_CONFIDENCE_CEILING * RAW_CONFIDENCE_MAX
 
 
-class Classification(str, Enum):
+class Classification(StrEnum):
     """The two permitted labels. Values are the exact strings the schema requires."""
 
     PD = "PD"

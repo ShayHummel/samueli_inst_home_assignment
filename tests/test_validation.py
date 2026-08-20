@@ -7,9 +7,9 @@ import pytest
 from src.prompts import JSON_CONTRACT
 from src.schema import (
     ABSTENTION_CONFIDENCE_CEILING,
+    SCHEMA_FIELD_NAMES,
     Classification,
     ClinicalClassification,
-    SCHEMA_FIELD_NAMES,
 )
 from src.validation import (
     FailureTally,

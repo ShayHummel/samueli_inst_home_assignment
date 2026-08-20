@@ -11,14 +11,15 @@ if needed).
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
 uv run pytest -q                         # 106 tests
+uv run ruff check .                      # lint: unused imports, undeclared packages
 uv run python -m src.eda                 # EDA over hw_docs/Oncology.csv
 uv run python -m src.evaluate            # Task 3.2 evaluation
 uv run python -m src.pipeline            # Part 2 flow, end to end, with a scripted model
 ```
 
-`uv sync` alone is enough — there are no optional extras to remember. The only extra,
-`postgres`, holds SQLAlchemy/psycopg for running the Task 3.1 SQL against a live server, and
-the tests do not need it.
+`uv sync` alone is enough — there are no optional extras to remember. Every third-party package
+imported anywhere in `src/` or `tests/` is declared in `pyproject.toml`, and `ruff check`
+enforces that nothing undeclared or unused creeps back in.
 
 ## Where the answers are
 

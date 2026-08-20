@@ -26,14 +26,14 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import ValidationError
 
 from .schema import Classification, ClinicalClassification, RawClassification
 
 
-class FailureType(str, Enum):
+class FailureType(StrEnum):
     """Why a record failed. Counted per type so failures stay diagnosable."""
 
     NO_JSON_FOUND = "no_json_found"
