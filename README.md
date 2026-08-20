@@ -139,5 +139,5 @@ point: it demonstrates the "small test set" failure mode from Q1.2f on our own e
 ## AI assistance
 
 Written with Claude Code, per the assignment's Logistics section. `steps_log.md` records what
-was decided at each step and why, including two bugs the assistant found by running the
-pipeline rather than reading it.
+was decided at each step and why, including the defects found by running the code rather than
+reading it.

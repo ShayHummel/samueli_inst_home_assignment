@@ -154,26 +154,6 @@ the pipeline calls `call_local_llm_messy` so the failure paths genuinely execute
 the tally. The mock also draws *real substrings* of each note as evidence quotes — an invented
 quote would fail the grounding check for the wrong reason and tell us nothing.
 
-### Two bugs found by running it
-
-Both were real defects in this pipeline, caught by executing it rather than by reading it.
-
-**1. Abstentions were being scored as near-certain PD.** `confidence_score` is confidence in
-*whichever* label was chosen, so P(PD) for a Non-PD prediction is `1 − confidence`. But the D13
-abstention signature is `Non-PD` with a **low** confidence, meaning "the note says nothing" —
-which that formula turns into `1 − 0.1 = 0.9`, i.e. "almost certainly PD". With ~69% of the
-corpus abstaining, this single sign error dominated the ranking and drove **ROC-AUC to 0.079
-(95% CI [0.007, 0.177]) against random labels** — a value chance cannot produce, which is what
-made it visible. Fixed by scoring an abstention as a constant `UNINFORMATIVE_SCORE = 0.5`, so
-abstentions tie and contribute no discrimination in either direction. That is the honest
-encoding of "no evidence".
-
-**2. The pipeline was not reproducible.** The per-note seed was `abs(hash(text))`, and Python
-salts string hashing per process (PEP 456) unless `PYTHONHASHSEED` is pinned — so the failure
-tally changed between runs. Fixed with SHA-256. Worth recording because Part 2.6 argues at
-length for reproducibility and this was exactly the hidden non-determinism it warns about,
-sitting in our own code. Two consecutive runs now produce byte-identical output.
-
 ### Results (seed 20260819)
 
 ```
@@ -200,12 +180,20 @@ instruction, so no relationship to the predictions exists to be found. The outpu
 explicitly, because a table of metrics with no such caveat invites exactly the
 misinterpretation Q1.2f is about.
 
+**How abstentions enter the ROC-AUC**, since it changes how the number reads.
+`confidence_score` is confidence in *whichever* label was chosen, so P(PD) is `1 − confidence`
+for a Non-PD prediction — but an abstention is `Non-PD` at *low* confidence, and that formula
+would turn "the note says nothing" into "almost certainly PD". Abstentions are therefore scored
+at a constant 0.5: they tie with each other and contribute no discrimination in either
+direction, which is the honest encoding of "no evidence". That is why the selective-prediction
+figure below, computed over the records the model actually committed on, is the more informative
+of the two.
+
 The number worth reading is **ROC-AUC 0.532, 95% CI [0.424, 0.646]** — an interval straddling
 0.5. That is exactly the right answer: against labels with no relationship to the input, a
 correct harness must find no discrimination, and the interval says so rather than leaving it to
-be assumed. It is the strongest available evidence that the evaluation code is measuring what it
-claims to. An AUC far from 0.5 here would have indicated a bug, which is how the abstention
-sign error described above was originally caught.
+be assumed. It is the strongest available evidence that the evaluation code measures what it
+claims to, and an AUC far from 0.5 here would be a signal to go looking for a bug.
 
 Precision 0.833 against recall 0.135 is the other thing to notice, and it is an artefact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class

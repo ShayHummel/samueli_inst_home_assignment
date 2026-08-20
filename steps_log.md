@@ -1550,3 +1550,40 @@ rather than the clinical setting.
 
 Verified: every figure in the document matches a fresh run, output byte-identical across two
 runs, ruff clean, 110 tests pass.
+
+### Round 24 — "Two bugs found by running it" removed from Part 3
+
+`@claude` comment: *"why do you need this section?"* The honest answer is that I did not.
+
+It was a **development narrative**, not an answer. Task 3.2 asks for labels, a mocked LLM,
+robust parsing with failures counted by type, and metrics. It does not ask for a changelog, and
+in a graded artefact "here are two defects I introduced and fixed" is a poor use of 220 words —
+especially in a document that has been trimmed twice already for exactly this reason.
+
+The content was also redundant across three places. The *fixes* and their reasoning live in the
+code, where they belong (`UNINFORMATIVE_SCORE` appears four times in `evaluate.py` with the
+rationale in the docstring; the SHA-256 seed choice is commented at the function and stated in
+the README's Reproducibility section). The *history* lives here in the log, in full. The answers
+document needed neither.
+
+**One fact in it was load-bearing and was kept**, reframed from a bug story into what it
+actually is — a design decision that changes how the reported ROC-AUC should be read. A reader
+needs to know that abstentions are scored at a constant 0.5 rather than mapped through the
+confidence formula, because otherwise the AUC looks like it covers all 68 records when in
+substance it discriminates only over the 20 the model committed on. That is now a short
+paragraph in the results narrative, and it makes the selective-prediction figure below it read
+as the more informative number rather than as an extra.
+
+Also removed the dangling clause that pointed at the deleted section ("which is how the
+abstention sign error described above was originally caught"), replaced with the forward-looking
+version: an AUC far from 0.5 here would be a signal to go looking for a bug. Same lesson,
+no dependency on a story.
+
+Generalised the README's AI-assistance disclosure from "two bugs" to "the defects", since the
+count had already gone stale — the `ModelPrivateAttr` and object-dtype boolean errors came later.
+
+Part 3 now 2,457 words. 110 tests pass, ruff clean, all links resolve.
+
+**Pattern worth noting across rounds 20, 22 and 24:** three separate cuts, all of the same
+thing — narration about the work rather than the work. Writing "here is what I learned building
+this" is a habit to resist in a deliverable; the log is where it belongs.
