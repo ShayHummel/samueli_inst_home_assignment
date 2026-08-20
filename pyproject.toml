@@ -27,6 +27,7 @@ postgres = [
 [dependency-groups]
 # Installed by `uv sync` by default, so the IDE's interpreter can see pytest.
 dev = [
+    "psycopg[binary]>=3.2",
     "pytest>=8.0",
 ]
 

@@ -1049,6 +1049,7 @@ postgres = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "psycopg", extra = ["binary"] },
     { name = "pytest" },
 ]
 
@@ -1064,7 +1065,10 @@ requires-dist = [
 provides-extras = ["postgres"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0" }]
+dev = [
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "pytest", specifier = ">=8.0" },
+]
 
 [[package]]
 name = "scikit-learn"
