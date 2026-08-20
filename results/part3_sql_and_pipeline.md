@@ -175,28 +175,32 @@ output each time would let almost everything recover by luck and empty the failu
 ### Results (seed 20260819)
 
 ```
-Failures by type                     Record accounting
-  records: 90                          records in corpus            90
-  valid:   90                          excluded - pipeline failed    0
-  failed:  0                           excluded - no ground truth    0
-                                       evaluated                    90
-                                       recovered by stage-4 repair   8
-                                       abstentions                  63
+Failures by type                       Record accounting
+  records: 90                            records in corpus            90
+  valid:   86                            excluded - pipeline failed    4
+  failed:  4                             excluded - no ground truth    0
+    schema_validation_error: 3           evaluated                    86
+    no_json_found:           1           recovered by stage-4 repair   4
+                                         abstentions                  59
 
-Confusion matrix                     PD-class metrics
-                pred Non-PD  pred PD    precision  0.778
-  true Non-PD            40        2    recall     0.146
-  true PD                41        7    f1         0.246
-                                        roc-auc    0.573
+Confusion matrix                       PD-class metrics
+                pred Non-PD  pred PD      precision  0.769
+  true Non-PD            37        3      recall     0.217
+  true PD                36       10      f1         0.339
+                                          roc-auc    0.614
 ```
 
-**Zero permanent failures on this corpus, and that is a tuning choice rather than a claim
-about the code.** The mock draws clean output 80% of the time; of the 8% that reaches the
-validator malformed, stage 4 recovers most, and on 90 notes nothing survives. The failure
-taxonomy is still exercised and asserted — `tests/test_evaluate.py` runs the same corpus with
-repair disabled and checks every failed record carries a typed reason — but a reviewer reading
-only this block sees an empty table. Lowering the clean rate or `REPAIR_SUCCESS_RATE` would
-populate it.
+Eight of the 90 notes reach the validator malformed; stage 4 rescues four and four stay failed
+with a typed reason. Both paths are visible on purpose — a run where repair recovered everything
+would leave 3.2's "count failures by error type" demonstrated by an empty table.
+
+**Two things in the per-record frame that surprise on first reading.** `predicted_label` is
+`0`/`1` rather than `"PD"`/`"Non-PD"`, to match the `ground_truth` encoding the assignment
+specifies (`0` for Non-PD, `1` for PD) and because scikit-learn wants numeric labels; the
+readable form sits alongside it in the `classification` column. And `p_pd` is exactly `0.5` for
+59 of the 86 valid records — every one of them an abstention. That is deliberate: an abstention
+means "the note says nothing", so it must contribute no discrimination to the ROC-AUC, which
+also means the AUC above is driven by the 27 records the model actually committed on.
 
 **These numbers measure the harness, not clinical accuracy** — the labels are random by
 instruction, so no relationship to the predictions exists to be found. The output says so
@@ -212,13 +216,13 @@ direction, which is the honest encoding of "no evidence". That is why the select
 figure below, computed over the records the model actually committed on, is the more informative
 of the two.
 
-The number worth reading is **ROC-AUC 0.573** — close to 0.5, which is the right answer.
+The number worth reading is **ROC-AUC 0.614** — near 0.5, which is the right answer.
 Against labels with no relationship to the input, a correct harness must find no
 discrimination, so this is the strongest available evidence that the evaluation code measures
 what it claims to. An AUC far from 0.5 here would be a signal to go looking for a bug, which is
 how an earlier sign error in the abstention scoring was caught.
 
-Precision 0.778 against recall 0.146 is the other thing to notice, and it is an artifact worth
+Precision 0.769 against recall 0.217 is the other thing to notice, and it is an artifact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class
 rarely makes precision look good and recall terrible — the threshold effect discussed in 3.3
 below, visible here by construction rather than by argument.
@@ -303,8 +307,8 @@ huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
 7. **Only then change the model.** Threshold, calibration and label quality account for this
    pattern far more often than model capacity does, and all three are cheaper to fix.
 
-This pipeline shows the pattern in miniature: ROC-AUC **0.573** against an F1 of **0.246**,
-with precision 0.778 and recall 0.146. The driver is abstention — most records carry no
+This pipeline shows the pattern in miniature: ROC-AUC **0.614** against an F1 of **0.339**,
+with precision 0.769 and recall 0.217. The driver is abstention — most records carry no
 evidence, so the model commits rarely, which flatters precision and destroys recall while
 leaving the ranking largely intact. With random labels the magnitude is noise; the mechanism is
 the point.

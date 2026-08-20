@@ -1832,3 +1832,51 @@ the requirement 3.2 actually states, and it holds at any tuning.
 
 Reported figures moved with the change (valid 85 → 90, ROC-AUC 0.542 → 0.573); Part 3 re-diffed
 against a live run. 108 tests, ruff clean, output byte-identical across runs.
+
+### Round 31 — five questions about the per-record frame
+
+**1. `predicted_label` is 0/1, not "PD"/"Non-PD". Where is it decided?**
+Decided by the mock at `_draw_payload` — `is_pd = bool(rng.random() < 0.5)` — which sets
+`"classification"` to the string. Encoded to 0/1 in `run_pipeline`
+(`predicted = LABEL_PD if ... else LABEL_NON_PD`). The encoding exists because `ground_truth`
+is 0/1 by the assignment's own wording ("0 for Non-PD, 1 for PD") and scikit-learn wants numeric
+labels. But expecting the readable form in a frame is entirely reasonable, so the frame now also
+carries a **`classification`** column with "PD"/"Non-PD".
+
+**2. Why is `p_pd` 0.5 so often?** Because 59 of the 86 valid records are abstentions, and
+`probability_of_pd` returns `UNINFORMATIVE_SCORE = 0.5` for them. Deliberate: an abstention means
+the note says nothing, so it must contribute no discrimination. Verified the two sets coincide
+exactly — every `p_pd == 0.5` row is an abstention and vice versa. Worth knowing that the
+reported AUC is therefore driven by the ~27 records the model committed on; noted in Part 3.
+
+**3. What is `is_abstention`?** The D13 signature: `Non-PD` **and** no supporting evidence
+**and** confidence at or below the ceiling. It distinguishes "nothing assessable in this note"
+from "assessed and found Non-PD", which the binary schema cannot express on its own.
+
+**4. Why was `MOCK_PD_RATE` 0.25 and not 0.5?** No good reason — the comment said as much
+("arbitrary"). Removed the constant; the mock now flips a fair coin, like the labels. The two
+remain independent (different generator streams), which is the part that matters: coupling them
+would manufacture the correlation the evaluation exists to find absent. One fewer magic number
+and one fewer paragraph explaining it.
+
+**5. `ok` always True, `failure_type` always None.** This was the cost of last round's
+`clean = 0.8`, surfacing in the frame rather than only in the summary. Measured the trade
+properly, via subprocesses — an in-process sweep reimported `src.*` and duplicated the enum
+classes, making identity comparisons unreliable and the first numbers wrong:
+
+| `REPAIR_SUCCESS_RATE` | failed | recovered |
+| ---: | ---: | ---: |
+| 0.7 | 0 | 8 |
+| 0.5 | 3 | 5 |
+| **0.4** | **4** | **4** |
+| 0.3 | 5 | 3 |
+| 0.0 | 8 | 0 |
+
+Set to **0.4**, which shows both paths. The justification is not only cosmetic: repair is
+forbidden from inventing an evidence quote, so when the first attempt was *truncated* the quote
+may be gone and no faithful repair exists. A high recovery rate would be the less realistic
+choice.
+
+Also documented every frame column in `run_pipeline`'s docstring as a table, so the next reader
+does not have to ask. Figures moved (ROC-AUC 0.573 → 0.614) and Part 3 was re-diffed against a
+live run; 108 tests, ruff clean, output byte-identical across runs.

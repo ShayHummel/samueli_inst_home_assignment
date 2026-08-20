@@ -61,12 +61,6 @@ LABEL_NON_PD, LABEL_PD = 0, 1
 
 DEFAULT_SEED = 20260819
 
-#: How often the mock *predicts* PD among notes that have assessable content.
-#: Distinct from ``pd_prevalence``, which governs the random ground-truth labels:
-#: the fake model and the fake truth are drawn independently on purpose, since
-#: coupling them would manufacture a correlation the evaluation is meant to find
-#: absent. The exact value is arbitrary.
-MOCK_PD_RATE = 0.25 # @Claude: why this number is not 0.5?
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "hw_docs" / "Oncology.csv"
 
@@ -95,7 +89,7 @@ def add_random_labels(
     df: pd.DataFrame,
     *,
     seed: int = DEFAULT_SEED,
-    pd_prevalence: float = 0.5, # @claude: why not the MOCK_PD_RATE ?
+    pd_prevalence: float = 0.5,
     missing_rate: float = 0.0,
 ) -> pd.DataFrame:
     """Attach a random binary ground-truth column.
@@ -198,7 +192,10 @@ def _draw_payload(text: str, rng: np.random.Generator) -> dict:
             "disease status or treatment response.",
         }
 
-    is_pd = bool(rng.random() < MOCK_PD_RATE)
+    # A fair coin, like the ground-truth labels — but drawn from a different stream,
+    # so predictions and labels stay independent. Coupling them would manufacture
+    # the correlation the evaluation exists to find absent.
+    is_pd = bool(rng.random() < 0.5)
     return {
         "classification": (Classification.PD if is_pd else Classification.NON_PD).value,
         "confidence_score": float(rng.integers(60, 98)),
@@ -283,10 +280,14 @@ def mock_stage1(note: str) -> str:
     )
 
 
-#: Fraction of malformed stage-2 outputs that a repair call recovers. Not 1.0 on
-#: purpose: if repair always worked the failure tally would be empty, and 3.2 asks
-#: for failures counted by type. Deterministic per note.
-REPAIR_SUCCESS_RATE = 0.7
+#: Fraction of malformed stage-2 outputs that a repair call recovers, deterministic
+#: per note. Deliberately well below 1.0, for two reasons. The honest one: repair is
+#: forbidden from inventing an evidence quote, so when the first attempt was
+#: *truncated* the quote may simply be gone and no faithful repair exists. The
+#: practical one: if repair recovered everything the failure tally would be empty,
+#: and 3.2 asks for failures counted by error type. At 0.4 the run shows both paths -
+#: roughly half the malformed records recovered, half permanently failed.
+REPAIR_SUCCESS_RATE = 0.4
 
 
 def mock_stage2_responses(note: str) -> list[str]:
@@ -340,6 +341,26 @@ def run_pipeline(df: pd.DataFrame, *, max_repair_attempts: int = 2) -> RunOutcom
     Args:
         df: Frame with ``transcription`` and ``ground_truth`` columns.
         max_repair_attempts: Passed through to the pipeline.
+
+    Returns:
+        A :class:`RunOutcome` whose frame has one row per note:
+
+        ==================  ====================================================
+        column              meaning
+        ==================  ====================================================
+        source_row_id       row id from the CSV
+        ground_truth        the random label: 0 = Non-PD, 1 = PD, NaN = unlabeled
+        ok                  did the whole pipeline succeed for this note
+        failure_type        typed reason if not, else None
+        failure_detail      the validator's message if not, else None
+        repair_attempts     stage-4 retries used (0 if the first attempt validated)
+        classification      "PD" or "Non-PD" — the readable prediction
+        predicted_label     the same thing as 0/1, to match ground_truth for sklearn
+        confidence_score    0.0-1.0, confidence in *whichever* label was chosen
+        p_pd                P(PD) for the ROC-AUC; 0.5 for abstentions
+        is_abstention       True when the note had nothing assessable (D13)
+        n_evidence          how many supporting quotes the output carried
+        ==================  ====================================================
     """
     tally = FailureTally()
     rows: list[dict] = []
@@ -363,6 +384,7 @@ def run_pipeline(df: pd.DataFrame, *, max_repair_attempts: int = 2) -> RunOutcom
             "failure_type": result.failure_type.value if result.failure_type else None,
             "failure_detail": result.failure_detail or None,
             "repair_attempts": result.repair_attempts,
+            "classification": None,
             "predicted_label": None,
             "confidence_score": None,
             "p_pd": None,
@@ -373,6 +395,7 @@ def run_pipeline(df: pd.DataFrame, *, max_repair_attempts: int = 2) -> RunOutcom
             c = result.classification
             predicted = LABEL_PD if c.classification is Classification.PD else LABEL_NON_PD
             row.update(
+                classification=c.classification.value,
                 predicted_label=predicted,
                 confidence_score=c.confidence_score,
                 p_pd=probability_of_pd(
