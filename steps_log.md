@@ -1717,3 +1717,47 @@ dataclass field ever was.
 
 Part 3 and the README updated; every figure re-diffed against a live run, output byte-identical
 across runs, ruff clean.
+
+### Round 28 — the two required mocks were bypassed by the pipeline
+
+Instruction: check every function in `evaluate.py` is needed; at least two are test-only and
+should be used inside `_mock_models`. A scripted reachability check confirmed exactly two:
+
+```
+call_local_llm         src=0  tests=6   TEST-ONLY
+call_local_llm_messy   src=0  tests=4   TEST-ONLY
+```
+
+**This was worse than dead code.** `call_local_llm(text) -> dict` is a function the assignment
+*explicitly requires*, and the pipeline was not calling it — `_mock_models` reached past both
+public mocks into `_draw_payload` and `_wrap_messy`. So the required entry point existed only to
+satisfy its own tests, which is close to the worst version of this mistake: the artifact
+appeared to meet the spec while the measured run went around it.
+
+Fixed by having `_mock_models` call `call_local_llm(note)` for the payload and
+`call_local_llm_messy(note)` for the raw stage-2 response. Both seed on the note text and draw
+the payload identically, so the two stages still agree and verdict drift does not fire — the
+suite confirms it.
+
+`_wrap_messy` was then inlined back into `call_local_llm_messy`. It had only been extracted so
+`_mock_models` could reach it; once nothing else needs it, the extraction was scaffolding.
+
+**The reported numbers moved slightly and that is expected**, not a regression:
+`call_local_llm_messy` draws the payload first and the malformed-mode choice from the *advanced*
+generator, whereas the inlined version had used a fresh one. Same seed, different position in
+the stream, so a different subset of notes gets malformed output. The new stream is the more
+correct of the two, since it is the function's own original behavior.
+
+| | before | after |
+| --- | ---: | ---: |
+| valid / failed | 84 / 6 | 85 / 5 |
+| abstentions | 58 | 61 |
+| precision / recall / F1 | 0.778 / 0.149 / 0.250 | 0.714 / 0.114 / 0.196 |
+| ROC-AUC | 0.570 | 0.542 |
+
+Still close to 0.5, which is the point.
+
+Ran the reachability check over all of `src/`, not just `evaluate.py`: nothing else is
+unreachable from an entry point. `evaluate.py` is now 492 lines, every function called from the
+pipeline. Part 3 figures re-diffed against a live run; output byte-identical across runs; 105
+tests pass; ruff clean.

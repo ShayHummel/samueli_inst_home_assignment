@@ -66,7 +66,7 @@ DEFAULT_SEED = 20260819
 #: the fake model and the fake truth are drawn independently on purpose, since
 #: coupling them would manufacture a correlation the evaluation is meant to find
 #: absent. The exact value is arbitrary.
-MOCK_PD_RATE = 0.25
+MOCK_PD_RATE = 0.25 # @Claude: why this number is not 0.5?
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "hw_docs" / "Oncology.csv"
 
@@ -95,7 +95,7 @@ def add_random_labels(
     df: pd.DataFrame,
     *,
     seed: int = DEFAULT_SEED,
-    pd_prevalence: float = 0.5,
+    pd_prevalence: float = 0.5, # @claude: why not the MOCK_PD_RATE ?
     missing_rate: float = 0.0,
 ) -> pd.DataFrame:
     """Attach a random binary ground-truth column.
@@ -119,7 +119,7 @@ def add_random_labels(
 # Mocked local LLM
 # --------------------------------------------------------------------------- #
 
-
+# @claude: Why do we need this function if it is not called by the current code?
 def call_local_llm(text: str, *, seed: int | None = None) -> dict:
     """Simulate the Part-2 output for one note. The signature the assignment asks for.
 
@@ -130,7 +130,7 @@ def call_local_llm(text: str, *, seed: int | None = None) -> dict:
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
     return _draw_payload(text, rng)
 
-
+# @claude: Why do we need this function if it is not called by the current code?
 def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     """Simulate *raw* model output, including the ways real output is malformed.
 
@@ -141,11 +141,7 @@ def call_local_llm_messy(text: str, *, seed: int | None = None) -> str:
     confidence 0.04, unknown field 0.03.
     """
     rng = np.random.default_rng(seed if seed is not None else _text_seed(text))
-    return _wrap_messy(_draw_payload(text, rng), rng)
-
-
-def _wrap_messy(payload: dict, rng: np.random.Generator) -> str:
-    """Render one payload as raw model output, sometimes malformed."""
+    payload = _draw_payload(text, rng)
     body = json.dumps(payload, indent=2)
 
     mode = rng.choice(
@@ -293,35 +289,36 @@ REPAIR_SUCCESS_RATE = 0.7
 def _mock_models(note: str, *, messy: bool) -> tuple[LlmCallable, LlmCallable]:
     """Scripted stage-1 and stage-2 models for one note.
 
-    Both derive from a single ``_draw_payload`` draw seeded on the note text, so the
-    pair is self-consistent and reproducible. The structuring mock is stateful: its
-    first response may be malformed, and a subsequent call — which only happens when
-    stage 3 rejected the first and stage 4 is retrying — usually returns clean JSON.
-    That is what makes the repair path observable in the reported numbers.
-    """
-    payload = _draw_payload(note, np.random.default_rng(_text_seed(note)))
-    stage1 = _stage1_text(payload)
+    Built from the two mocks the assignment asks for: :func:`call_local_llm` supplies
+    the payload and :func:`call_local_llm_messy` the raw stage-2 response. Both are
+    seeded on the note text and draw the payload identically, so the two stages agree
+    and the verdict-preservation check does not fire spuriously.
 
-    rng = np.random.default_rng(_text_seed(note))
-    repair_recovers = bool(np.random.default_rng(_text_seed(note) + 1).random()
-                           < REPAIR_SUCCESS_RATE)
-    state: dict = {"calls": 0, "first": None}
+    The structuring mock is stateful: a subsequent call only happens when stage 3
+    rejected the first and stage 4 is retrying, and usually returns clean JSON. That is
+    what makes the repair path observable in the reported numbers.
+    """
+    payload = call_local_llm(note)
+    stage1 = _stage1_text(payload)
+    first_raw = call_local_llm_messy(note) if messy else json.dumps(payload)
+
+    repair_recovers = bool(
+        np.random.default_rng(_text_seed(note) + 1).random() < REPAIR_SUCCESS_RATE
+    )
+    state = {"calls": 0}
 
     def reasoning_llm(_messages):
         return stage1
 
     def structuring_llm(_messages):
         state["calls"] += 1
-        if not messy:
-            return json.dumps(payload)
         if state["calls"] == 1:
-            state["first"] = _wrap_messy(payload, rng)
-            return state["first"]
+            return first_raw
         # A retry. Either the repair prompt lands, or the model repeats its mistake --
         # returning the *same* malformed output rather than a fresh random one, so a
         # non-recovering note stays failed however many attempts are allowed. Drawing
         # again would let almost everything recover by luck and empty the failure tally.
-        return json.dumps(payload) if repair_recovers else state["first"]
+        return json.dumps(payload) if repair_recovers else first_raw
 
     return reasoning_llm, structuring_llm
 

@@ -143,7 +143,7 @@ mock draws it for most notes accordingly.
 | Step | Function | Notes |
 | --- | --- | --- |
 | Random ground truth | `add_random_labels` | Seeded, fair coin, every record labeled — the literal reading of "a column of random binary labels". Prevalence and missing-label injection are keyword arguments for the tests, not CLI options, since neither is part of what 3.2 asks for. |
-| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
+| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies, and the function the pipeline actually calls. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Run the pipeline | `classify_note` (Part 2) | **The shipped flow, not a copy of it** — see below. |
 | Evaluate | `evaluate` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC. Exactly the four 3.2 asks to be printed. |
@@ -171,17 +171,17 @@ type.
 ```
 Failures by type                     Record accounting
   records: 90                          records in corpus            90
-  valid:   84                          excluded - pipeline failed    6
-  failed:  6                           excluded - no ground truth    0
-    no_json_found:           3         evaluated                    84
-    json_decode_error:       2         recovered by stage-4 repair  17
-    schema_validation_error: 1         abstentions                  58
+  valid:   85                          excluded - pipeline failed    5
+  failed:  5                           excluded - no ground truth    0
+    no_json_found:      4              evaluated                    85
+    json_decode_error:  1              recovered by stage-4 repair  17
+                                       abstentions                  61
 
 Confusion matrix                     PD-class metrics
-                pred Non-PD  pred PD    precision  0.778
-  true Non-PD            35        2    recall     0.149
-  true PD                40        7    f1         0.250
-                                        roc-auc    0.570
+                pred Non-PD  pred PD    precision  0.714
+  true Non-PD            39        2    recall     0.114
+  true PD                39        5    f1         0.196
+                                        roc-auc    0.542
 ```
 
 **These numbers measure the harness, not clinical accuracy** — the labels are random by
@@ -198,13 +198,13 @@ direction, which is the honest encoding of "no evidence". That is why the select
 figure below, computed over the records the model actually committed on, is the more informative
 of the two.
 
-The number worth reading is **ROC-AUC 0.570** — close to 0.5, which is the right answer.
+The number worth reading is **ROC-AUC 0.542** — close to 0.5, which is the right answer.
 Against labels with no relationship to the input, a correct harness must find no
 discrimination, so this is the strongest available evidence that the evaluation code measures
 what it claims to. An AUC far from 0.5 here would be a signal to go looking for a bug, which is
 how an earlier sign error in the abstention scoring was caught.
 
-Precision 0.778 against recall 0.149 is the other thing to notice, and it is an artifact worth
+Precision 0.714 against recall 0.114 is the other thing to notice, and it is an artifact worth
 naming: the mock abstains on most notes, so it predicts PD rarely. Predicting the positive class
 rarely makes precision look good and recall terrible — the threshold effect discussed in 3.3
 below, visible here by construction rather than by argument.
@@ -289,8 +289,8 @@ huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
 7. **Only then change the model.** Threshold, calibration and label quality account for this
    pattern far more often than model capacity does, and all three are cheaper to fix.
 
-This pipeline shows the pattern in miniature: ROC-AUC **0.570** against an F1 of **0.250**,
-with precision 0.778 and recall 0.149. The driver is abstention — most records carry no
+This pipeline shows the pattern in miniature: ROC-AUC **0.542** against an F1 of **0.196**,
+with precision 0.714 and recall 0.114. The driver is abstention — most records carry no
 evidence, so the model commits rarely, which flatters precision and destroys recall while
 leaving the ranking largely intact. With random labels the magnitude is noise; the mechanism is
 the point.
