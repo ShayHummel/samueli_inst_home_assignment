@@ -14,6 +14,21 @@ model and does not care whether it is talking to vLLM, Ollama, or a mock.
 
 from __future__ import annotations
 
+# Running this file by path (`python src/pipeline.py`, which is PyCharm's default run
+# configuration) leaves __package__ unset, so the relative imports below have no
+# parent package to resolve against and fail with an opaque ImportError. Checking
+# __package__ specifically — rather than catching ImportError — means a genuinely
+# missing dependency still reports itself accurately.
+if not __package__:  # pragma: no cover - only reachable when run by file path
+    raise SystemExit(
+        "Run this as a module, not a file path:\n"
+        "    uv run python -m src.pipeline\n"
+        "or use the installed entry point:\n"
+        "    uv run samueli-pipeline\n\n"
+        "In PyCharm, set the run configuration's target to 'module name' "
+        "(src.pipeline) instead of 'script path'."
+    )
+
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
@@ -226,7 +241,8 @@ def classify_notes(
     return results, tally
 
 
-if __name__ == "__main__":  # pragma: no cover - illustrative walkthrough
+def demo() -> int:  # pragma: no cover - illustrative walkthrough
+    """Run the flow end to end against a scripted model. Entry point for `samueli-pipeline`."""
     # A scripted stand-in for a local model, so the flow can be seen end to end
     # without a GPU. Stage 2 deliberately emits a fenced block with trailing
     # prose, which is exactly the mess the validator is built to absorb.
@@ -265,3 +281,8 @@ if __name__ == "__main__":  # pragma: no cover - illustrative walkthrough
     print(f"confidence       : {result.classification.confidence_score}")
     print(f"evidence grounded: {len(result.classification.supporting_evidence)} quote(s)")
     print(f"repair attempts  : {result.repair_attempts}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(demo())

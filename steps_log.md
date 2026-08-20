@@ -1214,3 +1214,34 @@ metrics are identical.
 `src/` and `tests/`, collect the third-party import roots, and diff against the declared
 dependencies. Result: nothing missing, and the only declared-but-unimported packages are
 `ruff` and `pandas-stubs`, which are tooling and never imported by design. 106 tests still pass.
+
+### Comment round 15 — `python src/pipeline.py` fails
+
+Reported: running the file by path raises `ImportError: attempted relative import with no known
+parent package`. Not a defect in the code — an invocation difference, and PyCharm's default run
+configuration ("script path") hits it every time.
+
+**Cause.** A file run by path gets `__package__ = None`, and relative imports resolve against
+`__package__`. With no parent package, `from .prompts import …` has nothing to resolve against.
+`python -m src.pipeline` imports the file *as a module inside the `src` package*, so
+`__package__ == "src"` and the imports work. Worth noting the second half: by path,
+`sys.path[0]` is `…/src` rather than the project root, so switching to absolute imports
+(`from src.prompts import …`) would fail too. The fix is not an import-style change.
+
+Affected `src/pipeline.py` and `src/evaluate.py`. `src/eda.py` was unaffected — it has no
+relative imports.
+
+**Three changes, since a reviewer will hit this the same way:**
+1. **A `__package__` guard** at the top of both modules that raises `SystemExit` with the
+   correct command and the PyCharm setting to change. Guarding on `__package__` specifically
+   rather than catching `ImportError` matters: catching the exception would also swallow a
+   genuinely missing dependency and report it as an invocation problem.
+2. **Console entry points** — `samueli-eda`, `samueli-evaluate`, `samueli-pipeline` — in
+   `[project.scripts]`. These work from any directory and sidestep the trap entirely, which
+   makes them the form to document. Required extracting `main()` in `eda.py` and `demo()` in
+   `pipeline.py`, since an entry point needs a callable rather than an `if __name__` block.
+3. **README** now leads with the entry points, notes the `-m` equivalent, and calls out the
+   PyCharm run-configuration setting explicitly.
+
+Verified all three invocation styles for all three modules, plus that the by-path route now
+prints instructions rather than a traceback. ruff clean, 106 tests pass.

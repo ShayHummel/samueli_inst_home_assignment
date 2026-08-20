@@ -182,5 +182,11 @@ def report(df: pd.DataFrame) -> str:
     return "\n".join(out)
 
 
-if __name__ == "__main__":
+def main() -> int:
+    """Entry point for `samueli-eda`."""
     print(report(load()))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -12,10 +12,21 @@ if needed).
 uv sync                                  # one command; installs everything incl. pytest
 uv run pytest -q                         # 106 tests
 uv run ruff check .                      # lint: unused imports, undeclared packages
-uv run python -m src.eda                 # EDA over hw_docs/Oncology.csv
-uv run python -m src.evaluate            # Task 3.2 evaluation
-uv run python -m src.pipeline            # Part 2 flow, end to end, with a scripted model
+
+uv run samueli-eda                       # EDA over hw_docs/Oncology.csv
+uv run samueli-evaluate                  # Task 3.2 evaluation
+uv run samueli-pipeline                  # Part 2 flow end to end, with a scripted model
 ```
+
+The three commands above are console entry points and work from any directory. The equivalent
+module form also works: `uv run python -m src.eda`, and so on.
+
+> **Do not run these by file path.** `python src/pipeline.py` fails with
+> `ImportError: attempted relative import with no known parent package`, because a file run by
+> path has no parent package for `from .prompts import …` to resolve against. The modules detect
+> this and print the correct command instead of a stack trace. **In PyCharm**, set the run
+> configuration's target to **module name** (`src.pipeline`) rather than **script path** — the
+> default is script path, which is exactly the failing case.
 
 `uv sync` alone is enough — there are no optional extras to remember. Every third-party package
 imported anywhere in `src/` or `tests/` is declared in `pyproject.toml`, and `ruff check`

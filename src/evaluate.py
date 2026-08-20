@@ -23,6 +23,21 @@ Three things here are deliberate rather than incidental:
 
 from __future__ import annotations
 
+# Running this file by path (`python src/evaluate.py`, which is PyCharm's default run
+# configuration) leaves __package__ unset, so the relative imports below have no
+# parent package to resolve against and fail with an opaque ImportError. Checking
+# __package__ specifically — rather than catching ImportError — means a genuinely
+# missing dependency still reports itself accurately.
+if not __package__:  # pragma: no cover - only reachable when run by file path
+    raise SystemExit(
+        "Run this as a module, not a file path:\n"
+        "    uv run python -m src.evaluate\n"
+        "or use the installed entry point:\n"
+        "    uv run samueli-evaluate\n\n"
+        "In PyCharm, set the run configuration's target to 'module name' "
+        "(src.evaluate) instead of 'script path'."
+    )
+
 import argparse
 import hashlib
 import json
