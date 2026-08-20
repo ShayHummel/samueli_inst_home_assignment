@@ -11,15 +11,18 @@ import pytest
 from src.evaluate import (
     LABEL_NON_PD,
     LABEL_PD,
+    SCENARIO_WEIGHTS,
     UNINFORMATIVE_SCORE,
     add_random_labels,
     call_local_llm,
     call_local_llm_messy,
     evaluate,
+    load,
     mock_stage1,
     mock_stage2_responses,
     probability_of_pd,
     run_pipeline,
+    scenario_for,
 )
 from src.schema import ClinicalClassification, RawClassification
 
@@ -112,12 +115,14 @@ def test_evidence_quotes_are_real_substrings_of_the_note():
         assert quote in NOTE_WITH_STATUS
 
 
-def test_messy_mock_produces_more_than_one_shape():
-    notes = [f"no evidence of progression, case {i}" for i in range(200)]
+def test_messy_mock_produces_every_shape_3_2_names():
+    """Fenced blocks, trailing prose, truncated and invalid JSON must all occur."""
+    notes = [f"no evidence of progression, case {i}" for i in range(400)]
     outputs = [call_local_llm_messy(n) for n in notes]
-    assert any(o.startswith("```") for o in outputs), "no fenced output produced"
+    assert any("```json" in o for o in outputs), "no fenced output produced"
     assert any("Certainly" in o for o in outputs), "no prose-wrapped output produced"
-    assert any(not o.rstrip().endswith("}") for o in outputs), "no truncated output produced"
+    assert any(not o.rstrip().endswith("}") for o in outputs), "nothing malformed produced"
+    assert any(o.rstrip().endswith("}") for o in outputs), "nothing well-formed produced"
 
 
 # --------------------------------------------------------------------------- #
@@ -305,3 +310,72 @@ def test_stage2_mock_queues_a_first_attempt_and_a_repair_response():
 
 def test_stage2_mock_is_deterministic():
     assert mock_stage2_responses(NOTE_WITH_STATUS) == mock_stage2_responses(NOTE_WITH_STATUS)
+
+
+# --------------------------------------------------------------------------- #
+# The scenario-driven mock
+# --------------------------------------------------------------------------- #
+
+
+def test_scenario_weights_are_a_distribution():
+    assert sum(SCENARIO_WEIGHTS.values()) == pytest.approx(1.0)
+    assert SCENARIO_WEIGHTS["1a"] == 0.55
+
+
+def test_scenario_choice_is_deterministic_per_note():
+    assert scenario_for(NOTE_WITH_STATUS) == scenario_for(NOTE_WITH_STATUS)
+
+
+def test_every_scenario_produces_its_intended_outcome():
+    """One note per scenario, driven through the pipeline, checked against the design.
+
+    This is the load-bearing test for the mock: it is what makes the reported failure
+    mix a property of the scenario table rather than an accident of tuning.
+    """
+    # Find a real corpus note for each scenario rather than fabricating one, so the
+    # evidence quotes still ground against their source.
+    notes = load()["transcription"].tolist()
+    by_scenario: dict[str, str] = {}
+    for note in notes:
+        by_scenario.setdefault(scenario_for(note), note)
+
+    expected = {
+        "1a": ("ok", 0),                       # contract met, no retries
+        "1b": ("stage1_no_verdict", 0),        # stage 1 off-contract
+        "2a": ("ok", 0),                       # fence + prose absorbed by the extractor
+        "2b": ("ok", 0),                       # stage 2 ignored the injected instruction
+        "3a": ("verdict_drift", 0),            # unrepairable by design
+        "3b": ("evidence_not_in_source", 2),   # repairable, so it retries, then fails
+        "3c": ("ok", 0),                       # abstention
+        "4a": ("ok", 1),                       # truncated, recovered on retry 1
+        "4b": ("no_json_found", 2),            # never recovers, retries bounded
+        "4c": ("verdict_drift", 0),            # drift again: retries allowed, none used
+    }
+    for scenario, (outcome, repairs) in expected.items():
+        note = by_scenario.get(scenario)
+        if note is None:  # scenario absent from this 90-note corpus
+            continue
+        row = run_pipeline(frame([note], [1.0])).frame.iloc[0]
+        if outcome == "ok":
+            assert row["ok"], f"{scenario}: expected success, got {row['failure_type']}"
+        else:
+            assert not row["ok"], f"{scenario}: expected {outcome}, succeeded"
+            assert row["failure_type"] == outcome, f"{scenario}: {row['failure_type']}"
+        assert row["repair_attempts"] == repairs, f"{scenario}: repairs={row['repair_attempts']}"
+
+
+def test_abstention_scenario_is_recognised_as_such():
+    notes = load()["transcription"].tolist()
+    note = next((n for n in notes if scenario_for(n) == "3c"), None)
+    if note is not None:
+        row = run_pipeline(frame([note], [0.0])).frame.iloc[0]
+        assert row["ok"] and row["is_abstention"]
+
+
+def test_pd_predictions_are_rare():
+    """MOCK_PD_RATE is 5%, matching a corpus almost devoid of PD vocabulary."""
+    f = run_pipeline(add_random_labels(load())).frame
+    # is_abstention is object dtype (None for failed records), so cast explicitly.
+    committed = f[f["ok"] & ~f["is_abstention"].fillna(False).astype(bool)]
+    assert len(committed) > 5, "too few committed records to say anything"
+    assert (committed["classification"] == "PD").mean() < 0.25

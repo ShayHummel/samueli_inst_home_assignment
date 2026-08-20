@@ -1880,3 +1880,59 @@ choice.
 Also documented every frame column in `run_pipeline`'s docstring as a table, so the next reader
 does not have to ask. Figures moved (ROC-AUC 0.573 → 0.614) and Part 3 was re-diffed against a
 live run; 108 tests, ruff clean, output byte-identical across runs.
+
+### Round 32 — the mock is now scenario-driven, and PD is rare
+
+Two instructions: `is_pd` should be true 5% of the time, not 50%; and the LLM mocking should be
+driven by the `src/demo.py` scenarios at 55% for 1a and 5% each for the other nine. Plus the
+observation that 3.2's "parse robustly" paragraph is satisfied by the *pipeline*, not by the
+mock.
+
+That last point is what made the redesign possible. The old mock carried a probability table
+over malformed *shapes* — fenced, prose, truncated, invalid JSON, out-of-range confidence,
+unknown field — which duplicated what `verify_output` and stage 4 already handle. Replacing it
+with a table over *scenarios* says the same thing at the level that matters, and connects the
+corpus run to the walkthrough instead of leaving them as two unrelated descriptions of the same
+pipeline.
+
+`scenario_for(note)` assigns a scenario deterministically; `call_local_llm`, then
+`call_local_llm_messy`, then the two per-stage mocks each consult it. Realised outcomes on the
+90-note corpus, every one matching the design:
+
+| scenario | n | outcome |
+| --- | ---: | --- |
+| 1a | 43 | all succeed, 0 repairs |
+| 1b | 6 | all `stage1_no_verdict`, stage 2 never called |
+| 2a | 4 | all succeed, 0 repairs — extractor absorbed the fence and prose |
+| 2b | 5 | all succeed — stage 2 did not obey the injected instruction |
+| 3a | 4 | all `verdict_drift`, **0 repairs** |
+| 3b | 2 | all `evidence_not_in_source` after 2 retries |
+| 3c | 9 | all succeed, flagged abstention |
+| 4a | 6 | all succeed, 1 repair each |
+| 4b | 5 | all `no_json_found` after 2 retries |
+| 4c | 6 | all `verdict_drift`, **0 repairs** |
+
+**Four distinct failure types now appear** — drift 10, no-verdict 6, no-json 5, ungrounded
+evidence 2 — where the previous tuning produced one or two. `REPAIR_SUCCESS_RATE` is gone
+entirely: which records recover is now a property of the scenario (4a recovers, 4b does not)
+rather than of a probability, which is both simpler and more legible.
+
+3a and 4c collapse to the same outcome under a single `max_repair_attempts`, so together they
+give 10% drift. Recorded rather than papered over, since the walkthrough distinguishes them by
+the retry budget and `run_pipeline` only has one.
+
+**`MOCK_PD_RATE = 0.05`.** Also caught that the constant had been *defined* last round but never
+wired in — `_draw_payload` still flipped a fair coin. Now used, and the consequence is worth
+stating plainly: exactly one PD prediction survives to be scored, so **precision reads 1.000
+and recall 0.029.** One-from-one precision carries no information. That is the low-prevalence
+trap from Q1.2c arriving by construction, and it is now called out in Part 3 as an artifact
+rather than left looking like a result — which also makes 3.3's "move the threshold first"
+argument land on the project's own numbers.
+
+ROC-AUC is **0.504**, about as close to 0.5 as this corpus permits — the sanity result that
+matters most here.
+
+`test_every_scenario_produces_its_intended_outcome` drives one real corpus note through each
+scenario and asserts both the outcome and the retry count, so the reported failure mix is pinned
+to the table rather than to luck. 108 → 113 tests. Part 3 rewritten around the scenario table;
+figures re-diffed against a live run; output byte-identical across runs; ruff clean.
