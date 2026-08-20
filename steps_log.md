@@ -1245,3 +1245,47 @@ relative imports.
 
 Verified all three invocation styles for all three modules, plus that the by-path route now
 prints instructions rather than a traceback. ruff clean, 106 tests pass.
+
+### Comment round 16 — comments in pipeline.py, and a four-scenario walkthrough
+
+Two requests, one of them an inline `@claude` marker in the file: *"add here a demo of repair,
+add here a demo of validation error, add here a demo of ambiguous note where no-pd is
+selected."*
+
+**Comments.** Added throughout `classify_note`, aimed at the decisions rather than the
+mechanics — a comment restating the line below it is noise. The ones worth having:
+- why `LlmCallable` is the narrowest possible interface (no streaming, tools or async, so a
+  model is trivial to substitute);
+- why `finish()` is a single exit point — tallying at each `return` site would eventually miss
+  one, and an untallied failure is the silent-failure mode 3.2 forbids;
+- why a missing stage-1 VERDICT short-circuits *before* stage 2, rather than paying for a call
+  whose output could not be drift-checked anyway;
+- why stage 2 not receiving the note is a security property rather than an optimisation;
+- why `VERDICT_DRIFT` is excluded from `REPAIRABLE_FAILURES`;
+- why the repair result is re-validated rather than trusted — a repair call is just another
+  model call and can fail in a new way;
+- why `self_check is not None` is load-bearing: an off-contract auditor yields `None`, treated
+  as *no audit* rather than as a pass;
+- why `classify_notes` is sequential (concurrency belongs at the serving layer, and adding it
+  here would complicate per-record failure accounting for no gain locally).
+
+**Walkthrough rebuilt from one scenario into four**, which is a better artefact than the
+original single happy path:
+1. **Clean run** — stage 2 wraps its JSON in a fence with prose either side; absorbed with zero
+   retries, showing that messy formatting is not a failure.
+2. **Repair** — stage 2 truncated mid-object; structural, so stage 4 runs with the exact
+   validator error and recovers on the first retry (`repair_attempts: 1`).
+3. **Verdict drift** — stage 1 says PD, stage 2 says Non-PD. Fails immediately with
+   `repair_attempts: 0` *despite* `max_repair_attempts=3`, which makes the unrepairable-by-design
+   decision visible in output rather than only in a comment.
+4. **Abstention** — an uninformative note (the majority of this corpus per the EDA) yielding
+   Non-PD at confidence 0.1 with no evidence, and `is_abstention` True.
+
+Scenario 3 is the one worth having: it demonstrates a deliberate *refusal* to repair, which is
+the kind of decision a reviewer would otherwise have to take on trust. Added two small helpers
+(`_ScriptedLlm`, `_stage1`) so the scenarios stay readable; `_ScriptedLlm` repeats its last
+response once exhausted, which is what makes "never recovers" cases easy to script.
+
+Closing line of the walkthrough says so explicitly: a clean run proves little, and scenarios
+2–4 are what the design exists to handle. ruff clean, 106 tests pass, all invocation styles
+still behave.
