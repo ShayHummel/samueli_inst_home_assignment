@@ -1431,3 +1431,38 @@ four of which pin exactly these decisions.
 replacing rather than adding when a comment is really saying "this is unclear".
 
 Verified after: 110 tests pass, ruff clean.
+
+### Comment round 21 — why `LIKE 'G20%'` and not `= 'G20'`
+
+`@claude` comment on the WHERE clause of query 3. The header already answered it, but not at
+the point of use — and checking the claim properly turned up something the header had wrong by
+omission.
+
+**The correctness argument, restated more honestly.** The original note said ICD-10-CM "added
+subcodes", implying plain G20 still exists alongside them. It does not: FY2024 split G20 into
+G20.A1/A2 (without dyskinesia), G20.B1/B2 (with dyskinesia) and G20.C, and **retired the bare
+code**. So on that vintage `= 'G20'` returns nothing at all, not merely fewer rows.
+
+The point the header was missing: **it depends on which standard the data uses.** WHO ICD-10 has
+no G20 children, and there `= 'G20'` would be exactly right. The assignment says only "ICD-10
+code G20", so the standard and vintage are unknown. `LIKE 'G20%'` is correct under both, and
+additionally under dotless storage (`'G20A1'`), which some systems use. That is a robustness
+choice against an unknown input, not a claim that subcodes are definitely present — and stating
+it that way is more defensible than the original.
+
+**The cost the header had not stated, found by measuring rather than assuming.** A prefix `LIKE`
+**cannot use a default-collation btree index**. On 20,000 rows: `= 'G20'` planned at cost 118.84
+using the index, `LIKE 'G20%'` at 359.61 — a sequential scan, 3x the cost. The default operator
+class orders by collation rules, which do not align with byte-prefix ranges.
+
+Fixed rather than documented as a wart: added `CREATE INDEX ... (icd10_code text_pattern_ops)`
+to `schema.sql`. Verified the plan now uses it —
+`Index Cond: ((icd10_code ~>=~ 'G20') AND (icd10_code ~<~ 'G21'))`, cost back to 118.84. The
+default index is kept alongside for equality and ORDER BY; two indexes on one column is a small
+storage cost for a query that is otherwise 3x more expensive than it needs to be.
+
+Also added a four-word inline pointer at the WHERE clause, since a reader asking this question is
+looking at line 20, not at the header. That is the cheap fix for "the answer exists but not where
+the question arises" — and cheaper than repeating the argument inline.
+
+110 tests pass.

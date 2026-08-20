@@ -49,5 +49,9 @@ CREATE INDEX visits_patient_date_idx ON visits (patient_id, visit_date);
 CREATE INDEX visits_department_date_idx ON visits (department, visit_date);
 CREATE INDEX diagnoses_visit_idx ON diagnoses (visit_id);
 CREATE INDEX diagnoses_code_idx ON diagnoses (icd10_code);
+-- Second index on the same column, for the prefix match in query 3. A default-collation
+-- btree cannot serve LIKE 'G20%'; text_pattern_ops compares byte-by-byte and can. The
+-- default index is kept for equality and ORDER BY.
+CREATE INDEX diagnoses_code_pattern_idx ON diagnoses (icd10_code text_pattern_ops);
 CREATE INDEX medications_patient_idx ON medications (patient_id);
 CREATE INDEX notes_visit_created_idx ON notes (visit_id, created_at DESC);
