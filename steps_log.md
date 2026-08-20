@@ -729,3 +729,72 @@ and `uv run pytest`, from `uv sync` alone.
 ### Open
 - 2.3–2.7 written answers still pending; the code now pins the contract they describe.
 - No real model wired up yet; `LlmCallable` is the seam where one attaches.
+
+---
+
+## 2026-08-20 — Session 7: Part 2 written answers completed
+
+### Comment round 9 — prompts moved out of the answers file
+
+`@claude` comment: *"remove the text from here and direct to the python file. Do it for
+all prompts. Describe only the pipeline."*
+
+Done. 2.2 now carries a module table linking each stage to its file
+(`src/prompts/stage1_reasoning.py`, `stage2_structuring.py`, `repair.py`,
+`self_check.py`), a short prose description of what each stage's prompt does, a usage
+snippet, and the design notes. All verbatim prompt text removed. Verified every
+relative link resolves to a real file.
+
+Benefit: one source of truth. The previous arrangement duplicated ~130 lines of prompt
+between the answers file and the code, which would have drifted the first time either
+was edited.
+
+**Risk flagged to the candidate, not silently accepted.** The assignment's Logistics
+section asks for "a PDF file with the theoretical answers **and prompt design**", and 2.2
+says "Write a complete System Prompt and User Prompt template". A reviewer reading only
+the PDF now cannot see the prompts. Recommended remedy: an appendix at the end of the PDF
+generated from the four modules at export time, which preserves single-source-of-truth
+while keeping the submitted artefact self-contained.
+
+### Comment round 10 — 2.3 to 2.7 answered
+
+- **2.3** — points at `src/schema.py`; documents the two rules enforced in the model
+  rather than the prompt (`extra="forbid"`, and PD requiring at least one evidence quote)
+  on the principle that a prompt can only ask while a validator can refuse. Notes
+  `classification` is an Enum so "Progressive Disease" or "pd" fail loudly rather than
+  being coerced, and that the mirror case (Non-PD with no evidence) is the legitimate D13
+  abstention signature.
+- **2.4** — nine layers, ordered cheapest-and-strongest first. The lead is
+  **constrained decoding** (vLLM `guided_json` via XGrammar/Outlines, or llama.cpp GBNF),
+  because it is the only layer that makes malformed output *unsamplable* rather than
+  merely discouraged, and it is available on-prem. Prompt-level instruction is
+  deliberately ranked fifth, since the question explicitly asks for mechanisms rather
+  than "ask it nicely".
+- **2.5** — five trap cases plus the injection case, each with expected classification,
+  confidence, evidence and reasoning. The point worth noting: cases 2 and 3 are ones a
+  naive implementation gets *accidentally* right, since both are Non-PD. Asserting on
+  the **abstention signature** (empty evidence, low confidence) rather than only the
+  label is what distinguishes a correct decision from a lucky one.
+- **2.6** — separates "temperature 0" from "reproducible". Greedy decoding is only
+  deterministic given bit-identical logits, so the answer tabulates nine layers to pin
+  (weights revision hash, quantisation scheme, engine version, batching, hardware,
+  tokeniser *and chat template*, rendered-prompt hash, post-processing version, dataset
+  snapshot). **Batching** is called out as the most commonly missed: floating-point
+  addition is non-associative, so under continuous batching the output can depend on who
+  else was in the batch — meaning a pipeline reproducible at batch size 1 can be
+  irreproducible in production, and determinism must be verified at the batch size
+  actually served.
+- **2.7** — seven layers, then the honest conclusion: the strongest guarantee is
+  **capability limitation, not persuasion**. The model has no tools, no network, no
+  filesystem; its entire output surface is one of two enum values plus validated text. So
+  a fully successful injection achieves one wrong label on one record, which the audit
+  and abstention band already catch. Layers 1–7 reduce probability; the architecture
+  bounds damage. Also notes the one case where string matching is genuinely insufficient:
+  an injected instruction *is* verbatim in the note, so it passes the grounding check, and
+  only the entailment audit catches that it does not support a PD verdict.
+
+Part 2 written answers: ~3,950 words. 49 tests still green.
+
+### Open
+- Appendix decision for the PDF (see risk above).
+- Part 3 not started.
