@@ -52,7 +52,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from .eda import load
 from .schema import RAW_ABSTENTION_CONFIDENCE_CEILING, Classification
 from .validation import FailureTally, verify_output
 
@@ -60,6 +59,23 @@ from .validation import FailureTally, verify_output
 LABEL_NON_PD, LABEL_PD = 0, 1
 
 DEFAULT_SEED = 20260819
+
+DATA_PATH = Path(__file__).resolve().parent.parent / "hw_docs" / "Oncology.csv"
+
+
+# --------------------------------------------------------------------------- #
+# Input
+# --------------------------------------------------------------------------- #
+
+
+def load(path: Path = DATA_PATH) -> pd.DataFrame:
+    """Load the corpus, normalising the unnamed index column."""
+    df = pd.read_csv(path)
+    df = df.rename(columns={"Unnamed: 0": "source_row_id"})
+    # Every text column in this export is padded with leading/trailing spaces.
+    for col in ("description", "medical_specialty", "sample_name", "transcription"):
+        df[col] = df[col].astype(str).str.strip()
+    return df
 
 
 # --------------------------------------------------------------------------- #

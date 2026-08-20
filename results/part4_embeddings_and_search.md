@@ -44,9 +44,9 @@ architecture — so I would name it up front rather than pick a model and discov
 ### The architecture this implies
 
 **1. BGE-M3 as the primary retriever.** Multilingual coverage is non-negotiable given the
-Hebrew/English mix, and its 8,192-token context comfortably holds whole notes — the EDA on
-`Oncology.csv` found no note exceeding ~2,000 tokens, so chunking can be avoided entirely,
-which removes a whole class of boundary bugs. Its **sparse signal is the reason to prefer it
+Hebrew/English mix, and its 8,192-token context comfortably holds whole notes — no note in
+`Oncology.csv` exceeds ~2,000 tokens, so chunking can be avoided entirely, which removes a whole
+class of boundary bugs. Its **sparse signal is the reason to prefer it
 over a dense-only model**: clinical text turns on rare tokens (drug names, ICD codes, `s/p`,
 `PR`) that dense embeddings smooth away, and getting lexical matching from the same model
 avoids running and tuning a second retrieval system.
@@ -82,7 +82,7 @@ clinical split, and our corpus is not its corpus.
 **Build a labelled retrieval set from our own notes.** Three sources, cheapest first:
 - **Mined weak pairs.** Use a note's own `IMPRESSION` section as the query and the note body as
   the positive. Free, large, and noisy — good for a first ranking, not for a final decision.
-  Note the EDA caveat: only 40 of 90 notes even have that header, so coverage is partial.
+  Coverage is partial: only 40 of the 90 notes carry that header at all.
 - **Known-item search.** Show a clinician a note and ask what they would type to find it again.
   This yields realistic queries and unambiguous ground truth.
 - **Clinician relevance judgments** over pooled top-k from all candidate systems, graded 0–3.
@@ -235,8 +235,8 @@ layer retrieves the *k* most semantically similar notes from the corpus and adds
 prompt as context.
 
 **The case.** Patient A's note is terse — a brief oncology follow-up that never states a
-response status. The EDA says this is not a corner case: **68.9% of `Oncology.csv` contains no
-disease-status vocabulary at all**, so this is the majority of the corpus.
+response status. This is not a corner case: **69% of `Oncology.csv` contains no disease-status
+vocabulary at all**, so it is the majority of the corpus.
 
 **What retrieval does.** Because the note is short and unspecific, the nearest neighbours are
 other oncology notes with the same cancer type and treatment line — and the notes that are

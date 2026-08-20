@@ -1466,3 +1466,36 @@ looking at line 20, not at the header. That is the cheap fix for "the answer exi
 the question arises" — and cheaper than repeating the argument inline.
 
 110 tests pass.
+
+### Round 22 — EDA script and report removed
+
+Instruction: *"Why did you generate eda_report.md? Which script generated it? If it is not
+required by the pdf, don't do it. In this case, remove the script and the report."*
+
+**Answers, for the record.** No script generated it — `results/eda_report.md` was written by
+hand; `src/eda.py` only ever printed to stdout. And it existed because it was requested in the
+opening brief: *"read the data in Oncology.csv, EDA, write EDA report of up to 1 page, perform
+the task."* The observation that the assignment PDF does not ask for it is correct: Task 3.2
+requires iterating the `transcription` column, nothing more.
+
+**Removed:** `results/eda_report.md`, `src/eda.py`, and the `samueli-eda` entry point.
+
+**One thing had to move first.** `src/evaluate.py` imported `load()` from `src/eda.py`, so
+deleting the module outright would have broken the Task 3.2 pipeline. `load()` — the CSV read
+plus the column-name normalisation and whitespace stripping the export needs — now lives in
+`evaluate.py`, its only consumer. That removes a module rather than adding one.
+
+**Citations reattributed rather than deleted.** Part 3 and Part 4 both rested on findings from
+that analysis, and those findings are load-bearing: the ~69% no-status-vocabulary figure is the
+justification for the D13 abstention decision and for the mock drawing abstentions for most
+notes, and the ~2,000-token maximum is why E.1 can rule out chunking. Deleting the conclusions
+would have weakened three answers; leaving them citing a deleted document would have been worse.
+So each is now stated as a direct property of `Oncology.csv` — verifiable by anyone with the CSV
+and three lines of pandas — rather than as "per the EDA". Same claims, no dangling reference.
+
+Verified after: no reference to the removed files anywhere, every relative link in `results/`
+and `README.md` resolves, both entry points run, ruff clean, 110 tests pass.
+
+**Cost worth recording:** the corpus figures are no longer reproducible from the repository. If
+a reviewer questions the 69% claim there is now no script to re-run. Both files are one
+`git revert` away if that trade turns out to be the wrong one.

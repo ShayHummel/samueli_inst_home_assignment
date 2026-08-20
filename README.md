@@ -13,13 +13,12 @@ uv sync                                  # one command; installs everything incl
 uv run pytest -q                         # 110 tests
 uv run ruff check .                      # lint: unused imports, undeclared packages
 
-uv run samueli-eda                       # EDA over hw_docs/Oncology.csv
 uv run samueli-evaluate                  # Task 3.2 evaluation
 uv run samueli-pipeline                  # walkthrough: 14 scenarios, one set per stage
 ```
 
-The three commands above are console entry points and work from any directory. The equivalent
-module form also works: `uv run python -m src.eda`, and so on.
+Both commands above are console entry points and work from any directory. The equivalent module
+form also works: `uv run python -m src.evaluate`, and so on.
 
 > **Do not run these by file path.** `python src/pipeline.py` fails with
 > `ImportError: attempted relative import with no known parent package`, because a file run by
@@ -40,7 +39,6 @@ enforces that nothing undeclared or unused creeps back in.
 | [`results/part2_prompt_design.md`](results/part2_prompt_design.md) | Part 2 — clarifying questions, prompt design, schema, adherence, edge cases, reproducibility, injection (2.1–2.7) |
 | [`results/part3_sql_and_pipeline.md`](results/part3_sql_and_pipeline.md) | Part 3 — ER diagram, SQL (3.1), evaluation pipeline (3.2), written questions (3.3) |
 | [`results/part4_embeddings_and_search.md`](results/part4_embeddings_and_search.md) | Part 4 — embedding model selection, vector store, RAG failure modes (E.1–E.3) |
-| [`results/eda_report.md`](results/eda_report.md) | One-page EDA of `Oncology.csv` |
 | [`steps_log.md`](steps_log.md) | Working log: what was done, what was decided, and why |
 
 ## Code layout
@@ -55,7 +53,6 @@ src/
     self_check.py          adversarial chain-of-thought audit
   validation.py    verify_output(): extraction, schema, verdict drift, quote grounding
   pipeline.py      classify_note(): the flow that drives all four prompts
-  eda.py           exploratory analysis of Oncology.csv
   evaluate.py      Task 3.2: labels, mocked LLM, robust parsing, metrics
 
 sql/

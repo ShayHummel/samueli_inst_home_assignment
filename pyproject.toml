@@ -19,7 +19,6 @@ dependencies = [
 [project.scripts]
 # Stable commands that work from any directory and sidestep the
 # "python src/foo.py" relative-import trap entirely.
-samueli-eda = "src.eda:main"
 samueli-evaluate = "src.evaluate:main"
 samueli-pipeline = "src.pipeline:demo"
 

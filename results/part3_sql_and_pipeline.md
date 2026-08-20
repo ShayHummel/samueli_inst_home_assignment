@@ -132,16 +132,17 @@ uv run pytest tests/test_sql_queries.py -v
 [`src/evaluate.py`](../src/evaluate.py) · run with `uv run python -m src.evaluate`
 · tests: [`tests/test_evaluate.py`](../tests/test_evaluate.py) (21)
 
-EDA first, as a prerequisite rather than a formality: [`results/eda_report.md`](eda_report.md)
-· [`src/eda.py`](../src/eda.py). The finding that shaped the implementation is that **68.9% of
-the corpus contains no disease-status vocabulary at all**, so the abstention path is the common
-case here, not an edge case.
+The property of the corpus that shaped this implementation: **62 of the 90 notes (69%) contain
+no disease-status or progression vocabulary at all** — no "progressive disease", "PD", "stable
+disease", "PR", "remission" or "no evidence of". They are consult letters, pre-operative notes
+and procedure reports. So the abstention path is the common case here, not an edge case, and the
+mock draws it for most notes accordingly.
 
 ### What the pipeline does
 
 | Step | Function | Notes |
 | --- | --- | --- |
-| Random ground truth | `add_random_labels` | Seeded; `pd_prevalence=0.05` to match Q1.2c, which the EDA found realistic for this corpus. `missing_rate` injects NaN labels so the 3.3 path is exercised, not just described. |
+| Random ground truth | `add_random_labels` | Seeded; `pd_prevalence=0.05` to match Q1.2c, which this corpus makes realistic rather than hypothetical — it contains two occurrences of "progression" and none of "progressive disease". `missing_rate` injects NaN labels so the 3.3 path is exercised, not just described. |
 | Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Deterministic per note. It simulates the *model*, so it emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
 | Mock *messy* output | `call_local_llm_messy(text) -> str` | Fenced blocks, leading/trailing prose, truncation, invalid JSON, out-of-range confidence, unknown fields — drawn at fixed probabilities. |
 | Parse and validate | `verify_output` (Part 2) | Reuses the Part-2 validator rather than reimplementing it. |
