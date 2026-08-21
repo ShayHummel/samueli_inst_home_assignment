@@ -196,22 +196,19 @@ would benchmark first, and it is why OpenSearch is the challenger rather than th
 
 Briefly on the rest: **Milvus** scales furthest but its component sprawl (etcd, object store,
 multiple services) is a liability where each component needs security review. **FAISS** is a
-library, not a store: no metadata filtering, no persistence, no auth. Fine as an embedded index
-behind your own service, wrong as the system of record.
+library, not a store: no persistence, no auth, and no filtering at all (see below). Fine as an
+embedded index behind your own service, wrong as the system of record.
 
-### Metadata filtering is the crux, and post-filtering is the trap
+### Metadata filtering
 
-The naive implementation retrieves top-k by vector similarity and *then* discards rows failing
-the filter. This breaks silently and badly under selective filters.
+The filter has to be applied **before or during** the vector search, never after. Worth stating
+only because it is not always a choice: FAISS's API takes a vector and returns global top-k, so
+anything built directly on it post-filters by construction — and the failure is an empty result
+rather than an error. For *"patient 12345, last six months"* — perhaps 40 notes among 10 million
+— the globally nearest 100 contain none of them, so a RAG pipeline answers with no context at
+all while the retrieval layer reports success.
 
-Concretely: *"notes for patient 12345 in the last six months."* That patient has perhaps 40
-notes among 10 million. An ANN search returns the 100 globally nearest vectors; the probability
-any belong to patient 12345 is negligible. **Post-filtering therefore returns an empty set** —
-and in a RAG pipeline an empty context is worse than a wrong one, because the model answers
-with no grounding at all and confabulates. The retrieval layer reports success; the failure
-surfaces as a hallucination downstream, far from its cause.
-
-Three correct approaches, in the order I would apply them:
+Three mechanisms, in the order I would apply them:
 
 **1. Filter first, then search exactly — for patient-scoped queries.** The dominant clinical
 access pattern is "this patient's records", and after filtering to one patient the candidate set

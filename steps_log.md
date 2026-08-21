@@ -2193,3 +2193,30 @@ splitting sections two different ways between rounds. Measured consistently from
 **Flag for the Part 4 review:** at 3,326 words it is now by some distance the longest answer —
 Part 3 came down to 1,865 after its concision pass, and Part 4 has not had one. E.1 (1,281) and
 E.2 (1,147) are both larger than any Part 3 section.
+
+### Round 37 — the post-filtering "trap" cut back to a clause
+
+`@claude` comment: *"The first approach below is a no-brainer. I don't understand why you
+mentioned the naive implementation at all."*
+
+Correct. Two paragraphs and a worked example went on demolishing something nobody would choose:
+if you know the access pattern is patient-scoped, filtering before the search is obvious. The
+section was structured as *trap, then three corrections*, which inflated a non-decision into the
+centrepiece and read as a straw man.
+
+**One fact in it was worth keeping, and it answers the "why mention it at all" directly:
+post-filtering is not always a choice.** FAISS's API takes a vector and returns global top-k —
+there is no filter argument — so anything built directly on it post-filters by construction. That
+matters because the same section lists FAISS as an option. And the failure is an empty result
+rather than an error, which is why it survives to production.
+
+So the section now states the requirement, gives that one sentence of justification for stating
+it, and goes straight to the three mechanisms. Heading changed from "Metadata filtering is the
+crux, and post-filtering is the trap" to just "Metadata filtering" — the old one announced a
+villain.
+
+Also de-duplicated a repeat the rewrite created: FAISS's lack of filtering was being stated in
+both the store-choice list and the filtering section. The earlier mention now points forward
+instead.
+
+E.2 1,147 → 1,116 words; Part 4 3,326 → 3,295.
