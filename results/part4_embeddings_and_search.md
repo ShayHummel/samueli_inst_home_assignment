@@ -60,7 +60,8 @@ re-embedding is a multi-day job. I would start from BGE-M3 for the single-system
 story and treat Qwen3 as the one candidate genuinely likely to beat it.
 
 **2. The domain models each do one job, and none of them is first-stage retrieval.** SapBERT
-normalizes entity mentions to UMLS CUIs, so `MI`, `myocardial infarction` and the Hebrew
+normalizes entity mentions to UMLS concept unique identifiers (CUIs) — stable IDs such
+as `C0030567` for Parkinson's disease that gather every surface form of one concept — so `MI`, `myocardial infarction` and the Hebrew
 equivalent collapse to one concept; those CUIs become *metadata* (see E.2) and feed the sparse
 channel. BioLORD-2023 reranks a shortlist, where definition-grounded training separates concepts
 that co-occurrence-trained models conflate. MedCPT belongs on a literature corpus, not on EHR
@@ -246,85 +247,57 @@ both faster and more auditable than hoping cosine similarity captures it.
 
 ## E.3 — A concrete failure mode where RAG makes clinical extraction worse
 
-### The failure: cross-patient contamination converts a safe abstention into a confident error
+### Cross-patient contamination turns a safe abstention into a confident error
 
-**Setup.** The Part 2 pipeline classifies a note as PD or Non-PD. To help on hard cases, a RAG
-layer retrieves the *k* most semantically similar notes from the corpus and adds them to the
-prompt as context.
+A RAG layer retrieves the *k* most similar notes and adds them to the Part 2 prompt. Patient A's
+note is terse and never states a response status — the majority case, since **69% of
+`Oncology.csv` contains no disease-status vocabulary at all**. Its nearest neighbors are
+therefore other patients' oncology notes of the same cancer type, skewed toward the semantically
+richest ones, which are exactly those with explicit progression language:
 
-**The case.** Patient A's note is terse — a brief oncology follow-up that never states a
-response status. This is not a corner case: **69% of `Oncology.csv` contains no disease-status
-vocabulary at all**, so it is the majority of the corpus.
+> "Restaging CT demonstrates new hepatic lesions … consistent with progressive disease."
 
-**What retrieval does.** Because the note is short and unspecific, the nearest neighbours are
-other oncology notes with the same cancer type and treatment line — and the notes that are
-*semantically richest*, hence closest, are disproportionately the ones with explicit progression
-language. So the retrieved context now contains, from **other patients**:
+The model returns `PD`, confidence 0.9, with a **verbatim supporting quote** — that sentence
+really is in its context. Without retrieval the note would have taken the D13 path: `Non-PD`,
+confidence ≤ 0.2, empty evidence, a machine-detectable abstention routed to a clinician. RAG
+replaced a safe, reviewed outcome with a confident, evidence-backed, wrong, *unreviewed* one —
+the confidence suppressing the review that would have caught it.
 
-> "Restaging CT demonstrates new hepatic lesions and enlargement of the retroperitoneal nodes,
-> consistent with progressive disease."
+The grounding check in [`src/validation.py`](../src/validation.py) catches this only because it
+verifies quotes against **the note under classification**, not against "the provided context" —
+the natural phrasing once RAG exists, and one that would let the record pass. **The distinction
+between the source document and the context window is load-bearing**, and a RAG retrofit is
+precisely when it gets blurred.
 
-**The output.** The model returns `PD` with a confidence of 0.9 — and, worst of all, a
-**verbatim supporting quote**, because that sentence genuinely exists in its context. Every
-surface signal of a well-grounded answer is present. The answer is about a different patient.
+### Why it generalizes: retrieval cannot say "nothing here"
 
-**Why this is worse than not using RAG at all.** Without retrieval this note would have hit the
-D13 path: `Non-PD`, confidence ≤ 0.2, empty evidence — a machine-detectable abstention routed to
-a clinician. RAG replaced a *correct, safe, reviewed* outcome with a *confident, evidence-backed,
-wrong, and unreviewed* one. That is the precise inversion that makes this failure dangerous:
-confidence suppresses the very review that would have caught it. A pipeline can lose safety by
-adding capability.
+**ANN search always returns *k* results.** There is no null answer and no calibrated distance
+that means "nothing relevant", so *nearest* and *relevant* collapse into one thing. Hence the
+unmatched-term case: where the **corpus** lacks a concept, retrieval returns the
+least-irrelevant notes; where the **embedding model** lacks it — a rare biomarker, a local
+abbreviation, Hebrew — the query vector is near-arbitrary and the neighbors effectively random.
+Both look identical to success. Note the asymmetry with E.2's post-filter: an empty result set is
+visible, *k* plausible near-misses are not.
 
-**Why our design happens to catch it — and how easily it would not.** The grounding check in
-[`src/validation.py`](../src/validation.py) verifies every quote against **the note under
-classification**, not against "the provided context". The contaminating quote is absent from
-patient A's note, so `find_ungrounded_quotes` flags it and the record fails with
-`evidence_not_in_source`. This is luck turned into design: had the check been written against
-"the context" — the natural phrasing once RAG exists — it would pass. **The distinction between
-*the source document* and *the context window* is load-bearing**, and a RAG retrofit is exactly
-when it gets blurred.
+Three further variants share the root. Retrieval surfaces **the same patient's older note** and
+re-opens the temporality trap (D9) after the prompt had closed it. **Dilution** buries the one
+decisive sentence among *k*=10 notes, so accuracy can fall below the no-retrieval baseline while
+every retrieval metric looks healthy. **Negation inversion** follows from embeddings' weakness on
+negation: *"no evidence of progression"* and *"evidence of progression"* are near neighbors.
 
-**Mitigations, in order of strength:**
+### Mitigations, and the principle
 
-1. **Scope retrieval to the same patient.** For extraction *from a document*, cross-patient
-   retrieval has almost no upside and unbounded downside. Enforced as a hard filter (E.2), not a
-   prompt instruction.
-2. **Separate the channels.** Retrieved text goes in a `<reference>` block explicitly marked as
-   *not* the subject of classification, and the target note in `<clinical_summary>`. Evidence may
-   only be quoted from the latter.
-3. **Ground by offset, not by string.** Require evidence as character offsets into the target
-   note. A quote from elsewhere then cannot be expressed at all — the failure becomes impossible
-   rather than detectable.
-4. **Stamp provenance on every chunk** (`patient_id`, note date) and assert it after retrieval.
+Scope retrieval to the same patient as a hard filter (E.2), not a prompt instruction. Keep
+retrieved text in a `<reference>` block that may never be quoted as evidence. Ground evidence by
+**character offset** into the target note, which makes a foreign quote inexpressible rather than
+merely detectable. Stamp `patient_id` and date on every chunk and assert them after retrieval.
+Add a **relevance floor** so the retriever can return nothing and the pipeline can abstain into
+D13. Use the hybrid **sparse** channel (E.1) for rare literal strings and negation.
 
-### Three shorter variants worth naming
-
-**Temporal contamination within one patient.** Retrieval is semantic, not chronological. Ask
-about current status and retrieval happily surfaces the *same patient's* 2023 note saying
-"progressive disease". This re-introduces the temporality trap (D9) through the retrieval layer
-*after* the prompt had solved it — a defense at one layer silently undone by a new layer.
-Mitigation: date-filter to the clinically relevant window and stamp every retrieved chunk with
-its date.
-
-**Dilution of the real evidence.** Padding the context with k=10 similar notes pushes the target
-note's one decisive sentence into the middle of a long context, where attention is weakest.
-Extraction accuracy can fall *below* the no-retrieval baseline while every retrieval metric
-looks healthy — which is exactly why E.1 insists on end-to-end task metrics rather than nDCG
-alone.
-
-**Negation-driven retrieval inversion.** Embeddings are notoriously weak on negation: *"no
-evidence of progression"* and *"evidence of progression"* are near neighbours. Retrieval meant to
-find supporting evidence returns the semantic opposite. Mitigation: the hybrid sparse channel
-from E.1, and never letting retrieval participate in the decision itself.
-
-### The principle
-
-**RAG is appropriate for retrieving reference knowledge and dangerous for retrieving patient
-facts.** Fetching the RECIST 1.1 criteria, a departmental protocol, or a drug's classification
-adds context the note cannot supply and carries no contamination risk. Fetching other patients'
-notes — or the same patient's notes from other times — injects facts that the model cannot
-reliably keep separate from the document it is supposed to be reading.
-
-For extraction from a specific document, **the document is the ground truth and everything else
-is a contamination risk**. RAG must therefore earn its place per task, measured end to end, and
-its default answer for this particular task is no.
+**RAG is appropriate for reference knowledge and dangerous for patient facts.** Fetching the
+RECIST 1.1 criteria or a drug classification adds what the note cannot supply and carries no
+contamination risk. Fetching other patients' notes — or the same patient's from other times —
+injects facts the model cannot reliably keep separate from the document it is meant to be
+reading. For extraction from a specific document the document is ground truth and everything else
+is a contamination risk, so RAG must earn its place per task, measured end to end. Here the
+default answer is no.

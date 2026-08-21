@@ -2222,3 +2222,43 @@ instead.
 E.2 1,147 → 1,115 words; Part 4 3,326 → 3,305 (measured, not estimated — I typed predicted
 figures into this entry in the same command that measured them, for the third time; the rule is
 append the numbers in a separate step after the edit lands).
+
+### Round 38 — the absent-concept failure, and E.3 cut by 44%
+
+Two things in one round, the second arriving mid-edit.
+
+**The comment.** *"I would think that if we search a term which is not part of the vocabulary RAG
+might find wrong results because of this missing concept."* Correct, and it is a different failure
+from the cross-patient contamination already written up. What makes it worth adding is that it
+exposes the root cause both share: **ANN search always returns k results.** There is no null
+answer and no calibrated distance that means "nothing relevant", so *nearest* and *relevant*
+collapse. Two readings of "not part of the vocabulary", both real and worth separating: the
+**corpus** lacks the concept (retrieval returns the least-irrelevant notes), or the **embedding
+model** lacks it — rare biomarker, local abbreviation, Hebrew — so the query vector is
+near-arbitrary and the neighbors effectively random. Both are indistinguishable from success.
+
+This also connects backwards to round 37: an empty post-filter result is at least *visible*,
+whereas k plausible near-misses are not. The failure the previous round called detectable is the
+benign one.
+
+Mitigations added: a **relevance floor** calibrated on held-out queries with known-absent
+concepts, so the retriever can return nothing and the pipeline abstains into D13 — which already
+routes no-evidence cases to a clinician, so the destination existed; and the **sparse channel**
+of the E.1 hybrid retriever, since a rare literal string is what lexical matching catches and a
+dense vector loses.
+
+**Then: "make E.3 much shorter and concise."** Arriving just after I had added ~200 words to it.
+E.3 was the longest-winded section in Part 4 — heavy bolded-lead paragraph structure, and a lot of
+rhetorical scaffolding restating the point it had just made ("this is not a corner case", "every
+surface signal of a well-grounded answer is present", "a pipeline can lose safety by adding
+capability", "this is luck turned into design"). All cut. The three shorter variants went from a
+paragraph each to a sentence each; the four-item mitigation list and the six-item combined list
+became one prose run. Nothing was dropped on substance — the new absent-concept material survives
+at roughly a third of the length I first wrote it.
+
+Also expanded **CUI** on first use, which was never spelled out anywhere in the document and which
+a reader hit as an actual question.
+
+Measured after the edit: E.3 1,018 → 574 words (−44%); Part 4 3,305 → 3,110. E.1 (1,288) and E.2
+(1,115) are now the long poles and are the next candidates if Part 4 needs to come down further
+toward Part 3's 1,865.
