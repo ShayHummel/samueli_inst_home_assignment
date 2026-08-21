@@ -34,17 +34,17 @@ architecture — so I would name it up front rather than pick a model and discov
 
 Ordered by role, most promising for this task to least.
 
-| Model | Role | Type | Strengths | Weaknesses |
-| --- | --- | --- | --- | --- |
-| **BGE-M3** | **Primary retriever** | General, multilingual | Broad multilingual coverage including Hebrew; 8,192-token context, so whole notes fit unchunked; emits **dense + sparse + multi-vector** from one model, giving lexical and semantic retrieval without a second system | General-domain: no clinical supervision; larger and slower than single-signal encoders |
-| **Qwen3-Embedding** (0.6B / 4B / 8B) | **Co-primary** | General, multilingual | Hebrew in scope via Qwen3's multilingual training; 32k context; instruction-aware queries; Matryoshka dimensions; Apache 2.0 | Dense only, so no sparse channel; the 8B tier is expensive at corpus scale |
-| **BM25** | **Mandatory baseline** | Lexical | No training, no GPU, no drift; unbeatable on exact drug names, ICD codes, identifiers | No semantics; misses paraphrase |
-| **multilingual-E5** (large / instruct) | Neural baseline to beat | General, multilingual | Strong, well-established multilingual baseline; cheap to serve | Requires `query:` / `passage:` prefixes — omit them and quality degrades sharply, a real operational footgun; 512-token limit on base variants forces chunking |
-| **GTE-multilingual** | Throughput alternative | General, multilingual | 8,192 context, notably smaller and faster than BGE-M3 | Fewer retrieval signals; less battle-tested clinically |
-| **BioLORD-2023** | Shortlist reranker | Domain, English | Trained against ontology *definitions* rather than co-occurrence, so clinically distinct concepts stay far apart instead of collapsing because they appear in the same notes; strong on biomedical sentence similarity | Sentence-scale, not document-scale; English only |
-| **SapBERT** | Concept normalization | Domain, English | Self-aligned over UMLS synonyms; excellent at mapping surface forms to concepts (`MI` ↔ `myocardial infarction`) | An **entity linker, not a passage retriever** — tuned for short strings, not documents; English only |
-| **MedCPT** | Literature corpus only | Domain, English | Trained on ~255M PubMed query–article click pairs, so it is a genuine *retriever* rather than a repurposed encoder; strong biomedical relevance | Trained on **PubMed abstracts, not clinical notes** — academic prose differs sharply from telegraphic EHR text full of abbreviations; English only |
-| **PubMedBERT** embeddings | Not deployable as-is | Domain, English | Pretrained from scratch on PubMed, so the vocabulary is genuinely biomedical rather than a general model's word-pieces | **Masked-LM pretraining alone is weak for retrieval** — it needs contrastive fine-tuning before its embeddings rank usefully, so a checkpoint is an encoder to fine-tune, not a retriever; English only |
+| Model                                  | Role                    | Type                  | Strengths                                                                                                                                                                                                              | Weaknesses                                                                                                                                                                                              |
+|----------------------------------------|-------------------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **BGE-M3**                             | **Primary retriever**   | General, multilingual | Broad multilingual coverage including Hebrew; 8,192-token context, so whole notes fit unchunked; emits **dense + sparse + multi-vector** from one model, giving lexical and semantic retrieval without a second system | General-domain: no clinical supervision; larger and slower than single-signal encoders                                                                                                                  |
+| **Qwen3-Embedding** (0.6B / 4B / 8B)   | **Co-primary**          | General, multilingual | Hebrew in scope via Qwen3's multilingual training; 32k context; instruction-aware queries; Matryoshka dimensions; Apache 2.0                                                                                           | Dense only, so no sparse channel; the 8B tier is expensive at corpus scale                                                                                                                              |
+| **BM25**                               | **Mandatory baseline**  | Lexical               | No training, no GPU, no drift; unbeatable on exact drug names, ICD codes, identifiers                                                                                                                                  | No semantics; misses paraphrase                                                                                                                                                                         |
+| **multilingual-E5** (large / instruct) | Neural baseline to beat | General, multilingual | Strong, well-established multilingual baseline; cheap to serve                                                                                                                                                         | Requires `query:` / `passage:` prefixes — omit them and quality degrades sharply, a real operational footgun; 512-token limit on base variants forces chunking                                          |
+| **GTE-multilingual**                   | Throughput alternative  | General, multilingual | 8,192 context, notably smaller and faster than BGE-M3                                                                                                                                                                  | Fewer retrieval signals; less battle-tested clinically                                                                                                                                                  |
+| **BioLORD-2023**                       | Shortlist reranker      | Domain, English       | Trained against ontology *definitions* rather than co-occurrence, so clinically distinct concepts stay far apart instead of collapsing because they appear in the same notes; strong on biomedical sentence similarity | Sentence-scale, not document-scale; English only                                                                                                                                                        |
+| **SapBERT**                            | Concept normalization   | Domain, English       | Self-aligned over UMLS synonyms; excellent at mapping surface forms to concepts (`MI` ↔ `myocardial infarction`)                                                                                                       | An **entity linker, not a passage retriever** — tuned for short strings, not documents; English only                                                                                                    |
+| **MedCPT**                             | Literature corpus only  | Domain, English       | Trained on ~255M PubMed query–article click pairs, so it is a genuine *retriever* rather than a repurposed encoder; strong biomedical relevance                                                                        | Trained on **PubMed abstracts, not clinical notes** — academic prose differs sharply from telegraphic EHR text full of abbreviations; English only                                                      |
+| **PubMedBERT** embeddings              | Not deployable as-is    | Domain, English       | Pretrained from scratch on PubMed, so the vocabulary is genuinely biomedical rather than a general model's word-pieces                                                                                                 | **Masked-LM pretraining alone is weak for retrieval** — it needs contrastive fine-tuning before its embeddings rank usefully, so a checkpoint is an encoder to fine-tune, not a retriever; English only |
 
 ### The architecture this implies
 
@@ -75,7 +75,7 @@ a setback — and hybrid (BM25 + dense, fused with reciprocal rank fusion) is fr
 production answer.
 
 **4. Hebrew must be measured, not assumed.** Exactly the Q1.1b concern one layer down:
-morphological richness makes tokenisation lossy, and code-switched notes put Hebrew prose
+morphological richness makes tokenization lossy, and code-switched notes put Hebrew prose
 around English drug names. Two levers if measurement disappoints: **domain-adaptive contrastive
 fine-tuning** of the retriever on de-identified local pairs — far cheaper than fine-tuning a
 generative model and usually the highest-leverage single move — and falling back to the sparse
@@ -96,14 +96,11 @@ clinical split, and our corpus is not its corpus.
   Expensive, so reserved for the final two or three models. Pooling matters: judging only one
   system's results biases the evaluation toward it.
 
-Same discipline as Q1.2b applies — two annotators, Cohen's κ on the judgments, adjudication by
-a third, and model scores read against the human agreement ceiling.
-
 **Metrics, in priority order.**
 - **Recall@k is the metric that matters for RAG.** If the evidence is not in the retrieved set,
   no amount of downstream reasoning recovers it — retrieval failure is unrecoverable, whereas
   imperfect ranking within a good candidate set is survivable.
-- nDCG@10 and MRR for ranking quality.
+- precision@k (or nDCG@k) and MRR for ranking quality.
 - **End-to-end task metrics.** The only commercially meaningful question is whether retrieval
   improves the *extraction* F1 from Part 3. A retriever that wins on nDCG but does not move
   extraction quality has not earned deployment. See E.3 for why it can actively hurt.
@@ -130,8 +127,7 @@ actually run with, since chunk size and model interact strongly.
 ### Hard constraints first
 
 Being inside a secure hospital network eliminates most of the market before performance is even
-discussed: **no managed service, no external network egress**, so Pinecone and any
-cloud-only offering are out. What remains must also provide auditable PHI access (who queried
+discussed: **no managed service, no external network egress**, so any cloud-only offering is out. What remains must also provide auditable PHI access (who queried
 which patient's data), encryption at rest, role-based access control, backup and restore, and
 **working deletes** — patient erasure is a legal requirement, and several vector engines treat
 deletion as an afterthought.
