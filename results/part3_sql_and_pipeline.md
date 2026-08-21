@@ -129,77 +129,34 @@ uv run pytest tests/test_sql_queries.py -v
 
 ## Task 3.2 — Python evaluation pipeline
 
-[`src/evaluate.py`](../src/evaluate.py) · run with `uv run python -m src.evaluate`
-· tests: [`tests/test_evaluate.py`](../tests/test_evaluate.py) (36)
+[`src/evaluate.py`](../src/evaluate.py) · `uv run samueli-evaluate` · 32 tests in
+[`tests/test_evaluate.py`](../tests/test_evaluate.py)
 
-The property of the corpus that shaped this implementation: **62 of the 90 notes (69%) contain
-no disease-status or progression vocabulary at all** — no "progressive disease", "PD", "stable
-disease", "PR", "remission" or "no evidence of". They are consult letters, pre-operative notes
-and procedure reports. So the abstention path is the common case here, not an edge case, and the
-mock draws it for most notes accordingly.
+Per note: draw a random label, pick a scenario, build the two stage responses and the retry
+budget, run them through **`classify_note` from Part 2** — the shipped flow, not a copy of it —
+then flatten the result. Print the four metrics 3.2 asks for.
 
-### What the pipeline does
+The mock is driven by the scenarios from the walkthrough in [`src/demo.py`](../src/demo.py), so
+the corpus run exercises the same stage paths the tour demonstrates:
 
-| Step | Function | Notes |
-| --- | --- | --- |
-| Random ground truth | `add_random_labels` | Seeded, fair coin, every record labeled — the literal reading of "a column of random binary labels". Prevalence and missing-label injection are keyword arguments for the tests, not CLI options, since neither is part of what 3.2 asks for. |
-| Pick a scenario | `scenario_for(note)` | One of the walkthrough scenarios, deterministic per note. |
-| Mock the model | `call_local_llm(text) -> dict` | The signature the assignment specifies. Emits the intermediate 0–100 contract; `verify_output` rescales to the 0.0–1.0 output schema (see 2.3). |
-| Mock both stages | `mock_llm_responses(note)` | Stage 1's response, stage 2's queued responses, and the retry budget. **The only place that branches on the scenario.** |
-| Run one note | `classify_one(note)` | Wires those into `classify_note` (Part 2) — the shipped flow, not a copy of it. |
-| Flatten the result | `result_to_row(record, result)` | Part-2 output fields plus the bookkeeping the metrics need. |
-| Evaluate | `evaluate(outcome)` | Confusion matrix, PD-class precision/recall/F1, ROC-AUC. Exactly the four 3.2 asks to be printed. |
+| scenario | share | outcome |
+| --- | ---: | --- |
+| 1a contract met end to end | **55%** | success, no retries |
+| 1b stage 1 omits its `VERDICT` line | 5% | `stage1_no_verdict`; stage 2 never called |
+| 2a stage 2 fences its JSON, adds prose | 5% | success — the extractor absorbs it |
+| 2b instruction-like text in stage 1's output | 5% | success — stage 2 reports it, does not obey |
+| 3a + 4c stage 2 flips the verdict | 10% | `verdict_drift`, **0 repairs** — unrepairable by design |
+| 3b quote absent from the note | 5% | `evidence_not_in_source` |
+| 3c nothing assessable | 5% | success, flagged as an abstention |
+| 4a truncated JSON | 5% | success, recovered on retry 1 |
+| 4b never returns valid JSON | 5% | `no_json_found`, retries bounded |
 
-**The mock is scenario-driven.** Each note is assigned one of the scenarios from the
-walkthrough in [`src/demo.py`](../src/demo.py), so a corpus run exercises the same stage paths
-the tour demonstrates, in chosen proportions:
-
-| | scenario | share | outcome |
-| --- | --- | ---: | --- |
-| **1a** | contract met end to end | **55%** | success, no retries |
-| 1b | stage 1 omits its `VERDICT` line | 5% | `stage1_no_verdict`; stage 2 never called |
-| 2a | stage 2 fences its JSON and adds prose | 5% | success — the extractor absorbs it, no repair |
-| 2b | instruction-like text inside stage 1's output | 5% | success — stage 2 reports it rather than obeying |
-| 3a | stage 2 flips the verdict | 5% | `verdict_drift`, **0 repairs** |
-| 3b | quote absent from the note | 5% | `evidence_not_in_source` after 2 retries |
-| 3c | nothing assessable in the note | 5% | success, flagged as an abstention |
-| 4a | truncated JSON | 5% | success, recovered on retry 1 |
-| 4b | never returns valid JSON | 5% | `no_json_found` after 2 retries |
-| 4c | drift again, with retries allowed | 5% | `verdict_drift`, still **0 repairs** |
-
-This replaces a probability table over malformed *shapes*. **3.2's "parse robustly" requirement
-is met by the pipeline**, not by the mock: `verify_output` and stage 4 absorb fenced blocks,
-trailing prose, truncation and invalid JSON, and scenarios 2a / 4a / 4b exist to feed them those
-shapes.
-
-Two deliberate simplifications, because what 3.2 evaluates is the PD / Non-PD decision:
-**the evidence quote is a slice of the note**, not a clinically chosen span — it only has to be
-verbatim enough to pass the grounding check, and selecting a "good" one would add machinery that
-moves no metric. And **abstention comes from scenario 3c** rather than from the note's
-vocabulary; inferring it from whether a note happened to contain status words made ~70% of the
-corpus abstain, tying most of the ROC-AUC input at 0.5. Now 58 of the 67 valid records carry an
-informative score.
-
-3a and 4c differ only in retry budget, itself a scenario property, so together they give 10%
-verdict drift. `tests/test_evaluate.py` drives one real note through each scenario and asserts
-the outcome and retry count above — which is what makes the reported failure mix a property of
-this table rather than of tuning.
-
-**The evaluation drives `classify_note`, not a reimplementation of it.** One scripted model per
-stage, the same shape `src/demo.py` uses: `mock_stage1` renders the payload into stage 1's
-four-line contract, and `mock_stage2_responses` queues stage 2's replies. So the measured run
-exercises the real stage split, the verdict-preservation check and the bounded repair loop — the
-same code path production uses, with only the models swapped. Evaluating a lookalike measures
-the wrong thing, and did: an earlier version called the validator directly, skipping stage 4 and
-reporting failures that the real pipeline repairs away.
-
-Two properties of the mock are deliberate. Both stages are built from **one** `call_local_llm`
-draw per note, so they cannot disagree — which is why verdict drift never fires here, and why a
-mock whose stages *did* disagree would report drift on every record and measure nothing. And
-repair recovers most malformed output but not all (70%, deterministic per note): a
-non-recovering note is handed back the *same* malformed text on every retry, because fresh
-output each time would let almost everything recover by luck and empty the failure tally that
-3.2 asks for.
+That is why there is no probability table over malformed *shapes*: **"parse robustly" is the
+pipeline's job**, and 2a / 4a / 4b exist to feed it those shapes. Each scenario's outcome and
+retry count is asserted in `tests/test_evaluate.py`, so the failure mix below is a property of
+this table rather than of tuning. Two simplifications follow from 3.2 evaluating the PD / Non-PD
+decision and nothing else: the evidence quote is a slice of the note rather than a clinically
+chosen span, and abstention comes from scenario 3c rather than from the note's vocabulary.
 
 ### Results (seed 20260819)
 
@@ -220,46 +177,14 @@ Confusion matrix                       PD-class metrics
                                           roc-auc    0.506
 ```
 
-**Four distinct failure types, six records rescued by repair.** That spread is the scenario
-table above showing through, and it is what makes 3.2's "count failures by error type"
-demonstrable rather than asserted.
+**ROC-AUC 0.506 is the number that matters.** The labels are random, so a correct harness must
+find no discrimination — and it does. Abstentions score exactly 0.5 and so contribute none; the
+other 58 records carry a real score.
 
-**The PD-class metrics rest on four predictions, so read them as a shape rather than a
-measurement.** The mock predicts PD for 5% of notes — matching a corpus with two occurrences of
-"progression" and none of "progressive disease" — giving three true positives and one false
-positive out of 67. Precision 0.750 against recall 0.088 is the low-prevalence trap from Q1.2c
-arriving by construction: at this operating point the PD-class metrics are near-unusable, which
-is exactly why 3.3 argues for moving the threshold before touching the model.
-
-**Two things in the per-record frame that surprise on first reading.** `predicted_label` is
-`0`/`1` rather than `"PD"`/`"Non-PD"`, to match the `ground_truth` encoding the assignment
-specifies (`0` for Non-PD, `1` for PD) and because scikit-learn wants numeric labels; the
-readable form sits alongside it in the `classification` column. And `p_pd` is exactly `0.5` for
-the nine abstentions. That is deliberate: an abstention means "the note says nothing", so it
-must contribute no discrimination to the ROC-AUC. The other 58 records carry a real score.
-
-**These numbers measure the harness, not clinical accuracy** — the labels are random by
-instruction, so no relationship to the predictions exists to be found. The output says so
-explicitly, because a table of metrics with no such caveat invites exactly the
-misinterpretation Q1.2f is about.
-
-**How abstentions enter the ROC-AUC**, since it changes how the number reads.
-`confidence_score` is confidence in *whichever* label was chosen, so P(PD) is `1 − confidence`
-for a Non-PD prediction — but an abstention is `Non-PD` at *low* confidence, and that formula
-would turn "the note says nothing" into "almost certainly PD". Abstentions are therefore scored
-at a constant 0.5: they tie with each other and contribute no discrimination in either
-direction, which is the honest encoding of "no evidence". That is why the selective-prediction
-figure below, computed over the records the model actually committed on, is the more informative
-of the two.
-
-The number worth reading is **ROC-AUC 0.506** — essentially 0.5, which is the right answer.
-Against labels with no relationship to the input, a correct harness must find no
-discrimination, so this is the strongest available evidence that the evaluation code measures
-what it claims to. An AUC far from 0.5 here would be a signal to go looking for a bug, which is
-how an earlier sign error in the abstention scoring was caught.
-
-Precision against recall is the other thing to notice, and it is the threshold effect discussed
-in 3.3 below, visible here by construction rather than by argument.
+**Read the PD-class metrics as a shape, not a measurement.** The mock predicts PD for 5% of
+notes, matching a corpus with two occurrences of "progression" and none of "progressive
+disease", so precision and recall rest on four predictions. That is the low-prevalence problem
+of Q1.2c arriving by construction, and it is what 3.3 below is about.
 
 ## Task 3.3 — Two written questions
 

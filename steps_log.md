@@ -2015,3 +2015,40 @@ Consolidated so a session can resume cold. Nothing here blocks anything else.
 
 ### Candidate's own housekeeping
 6. `.idea/modules.xml` modified, and `stash@{0}` left from the git-identity rewrite.
+
+---
+
+## 2026-08-21 — Task 3.2 write-up cut to length
+
+The assignment prefers concise answers; Task 3.2's section had grown to **1,418 words** — longer
+than 3.1, which covers five queries and 24 tests. Cut to **500**, which puts it below 3.1 as the
+balance suggests it should be.
+
+What went: the long prose explaining that the mock is scenario-driven (the table says it), a
+paragraph arguing that the evaluation drives `classify_note` rather than a copy (now a clause),
+a paragraph on the per-record frame's columns (already documented in `run_pipeline`'s docstring),
+and an eighteen-line explanation of how abstentions enter the ROC-AUC (now one sentence, with the
+detail living in `probability_of_pd`).
+
+**Reading it closely turned up four stale claims that the length had let survive** — each true
+when written, each falsified by a later round:
+
+| claim | reality |
+| --- | --- |
+| "the mock draws the abstention path for most notes" | abstention is scenario 3c at 5%; **9** records, not ~62 |
+| "verdict drift never fires here" | drift is scenarios 3a/4c; **10** records |
+| "repair recovers 70%, deterministic per note" | `REPAIR_SUCCESS_RATE` was deleted; recovery is a scenario property |
+| references to `mock_stage1` / `mock_stage2_responses` | both folded into `mock_llm_responses` |
+
+Plus the test count, cited as 36 against an actual 32.
+
+Worth recording as a pattern rather than five separate slips: **each was introduced by appending
+an explanation instead of replacing one.** The same habit produced the 84-line SQL header in
+round 20 and the "two bugs" section in round 24. Long prose does not just cost words — it hides
+the contradictions that accumulate inside it, because nobody re-reads a section they only ever
+add to.
+
+Verified after: every figure matches a live run, all links resolve, 113 tests, ruff clean.
+
+**Note for the 3.3 review:** at 919 words it is now the longest section, and the PDF asks for
+"two **short** written questions". Left alone pending the candidate's own review pass.
