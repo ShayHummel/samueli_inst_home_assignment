@@ -2219,4 +2219,6 @@ Also de-duplicated a repeat the rewrite created: FAISS's lack of filtering was b
 both the store-choice list and the filtering section. The earlier mention now points forward
 instead.
 
-E.2 1,147 → 1,116 words; Part 4 3,326 → 3,295.
+E.2 1,147 → 1,115 words; Part 4 3,326 → 3,305 (measured, not estimated — I typed predicted
+figures into this entry in the same command that measured them, for the third time; the rule is
+append the numbers in a separate step after the edit lands).
