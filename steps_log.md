@@ -2153,3 +2153,43 @@ referred to rows by position, so nothing else needed updating.
 measuring it, the same slip as round 34's 1,242. Not amending a pushed commit for it; recording
 the correction here instead. The lesson is cheap and I keep not applying it: measure after
 editing, never predict.)*
+
+### Round 36 — Elasticsearch / OpenSearch given a proper treatment in E.2
+
+`@claude` comment: *"what about Elastic Search?"* It had one sentence in a "briefly on the
+others" list, and that was under-weighting it — for a reason internal to my own answer.
+
+**E.1 concludes that hybrid retrieval is usually the production answer**, because clinical text
+turns on rare tokens that dense embeddings smooth away. A system that does BM25, dense kNN and
+rank fusion *in a single query* therefore fits that conclusion better than a vector store with
+BM25 bolted alongside. Filtering is its native idiom rather than a feature, and many hospitals
+already run it for logs or SIEM — which is the same "reuse an already-reviewed component"
+argument I had used *for* pgvector. Leaving that in a footnote was inconsistent.
+
+Promoted to its own treatment, with three things the one-liner had no room for:
+
+1. **Prefer OpenSearch over Elasticsearch, on licence grounds.** Elasticsearch left OSI-approved
+   licensing in 2021 and the features that matter most for PHI — document-level and field-level
+   security — sit in paid tiers; OpenSearch is Apache 2.0 with fine-grained access control
+   included. This is Q1.1a's argument arriving a second time: on-prem, licence terms are
+   load-bearing. Worth having the callback, since it shows the criterion generalizing rather
+   than being invented for the model table.
+2. **Qdrant is reframed as the choice for pure vector latency**, not the generic alternative —
+   OpenSearch is the one that answers the hybrid requirement.
+3. **The hybrid argument does not actually settle it.** PostgreSQL can do lexical retrieval too:
+   natively via `tsvector`/GIN, or with real BM25 through the `pg_search` extension. So
+   pgvector plus full-text search gives hybrid *in one system while keeping the metadata
+   authority and row-level security* that made it the recommendation. That is what makes
+   OpenSearch the challenger rather than the answer — and it is the honest resolution, since
+   simply adding a competitor would have left the recommendation looking arbitrary.
+
+E.2 933 → 1,147 words; Part 4 3,112 → 3,326.
+
+**Two measurement notes.** The `pg_search` / ParadeDB and OpenSearch licence-tier details sit
+near my knowledge cutoff and belong on the verification list with the Part 1 model specs. And
+round 35's "E.1 1,315 words" was itself wrong — E.1 has been 1,281 throughout; I had been
+splitting sections two different ways between rounds. Measured consistently from here.
+
+**Flag for the Part 4 review:** at 3,326 words it is now by some distance the longest answer —
+Part 3 came down to 1,865 after its concision pass, and Part 4 has not had one. E.1 (1,281) and
+E.2 (1,147) are both larger than any Part 3 section.

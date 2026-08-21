@@ -163,23 +163,41 @@ Millions of notes, unchunked because BGE-M3's context allows it, sits inside tha
 or where index build time is critical, a dedicated engine wins. So the decision is
 benchmark-gated rather than dogmatic.
 
-### The alternative, and its real cost
+### The alternatives, and their real cost
 
-**Qdrant** is the strongest dedicated option here: self-hostable, small footprint, and — most
-relevantly — it performs **filter-aware HNSW traversal** rather than filtering after search,
-with payload indexes on metadata fields. If benchmarking shows pgvector cannot meet latency
-targets, this is the move.
+Both serious contenders introduce the same cost: a second stateful system to secure, audit, back
+up and keep in sync with the EHR — and that sync is exactly the drift risk described above. That
+belongs in the decision, not in a footnote.
 
-But it introduces a second stateful system to secure, audit, back up and keep in sync with the
-EHR, and that sync is exactly the drift risk described above. That cost belongs in the decision,
-not in a footnote.
+**OpenSearch is the strongest challenger, on the strength of E.1's own conclusion.** If hybrid
+retrieval is the production answer — and E.1 argues it usually is, because clinical text turns on
+rare tokens — then a system doing BM25, dense kNN and rank fusion in a single query is a better
+fit than a vector store with BM25 bolted alongside. Filtering is its native idiom rather than a
+feature. And many hospitals already run it for logs or SIEM, which means the security review,
+backup and RBAC may already exist — the same argument made above *for* pgvector.
 
-Briefly on the others: **Milvus** scales furthest but its component sprawl (etcd, object store,
-multiple services) is a genuine liability where each component needs security review.
-**Elasticsearch / OpenSearch** deserves consideration because it gives BM25 and dense vectors in
-one system — attractive given E.1's hybrid conclusion — and many hospitals already operate it.
-**FAISS** is a library, not a store: no metadata filtering, no persistence, no auth. Fine as an
-embedded index behind your own service, wrong as the system of record.
+**Prefer OpenSearch over Elasticsearch, and the reason is the licence.** Elasticsearch left
+OSI-approved licensing in 2021, and the features that matter most for PHI — document-level and
+field-level security — sit in paid tiers. OpenSearch is Apache 2.0 with fine-grained access
+control included. This is Q1.1a's point arriving again: on-prem, licence terms are load-bearing,
+not a footnote. Against it: JVM operational weight, and vector search that is newer than its
+lexical core.
+
+**Qdrant** is the choice if the requirement is pure vector latency rather than hybrid:
+self-hostable, small footprint, and it performs **filter-aware HNSW traversal** rather than
+filtering after search. If benchmarking shows pgvector cannot meet latency targets, this is the
+move.
+
+**The hybrid argument does not actually settle it, though.** PostgreSQL can do lexical retrieval
+too — natively via `tsvector`/GIN, or with real BM25 scoring through the `pg_search` extension —
+so pgvector plus full-text search gives hybrid in one system *while keeping the metadata
+authority and row-level security that made it the recommendation*. That is the combination I
+would benchmark first, and it is why OpenSearch is the challenger rather than the answer.
+
+Briefly on the rest: **Milvus** scales furthest but its component sprawl (etcd, object store,
+multiple services) is a liability where each component needs security review. **FAISS** is a
+library, not a store: no metadata filtering, no persistence, no auth. Fine as an embedded index
+behind your own service, wrong as the system of record.
 
 ### Metadata filtering is the crux, and post-filtering is the trap
 
