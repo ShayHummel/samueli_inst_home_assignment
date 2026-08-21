@@ -2294,3 +2294,44 @@ rule was wrong about the mechanism. Putting the measurement earlier *in the same
 log heredoc does nothing: the heredoc text is authored before any output is seen. The rule is
 therefore that the log entry must be written in a **separate tool call** after the measurement has
 been read — not merely after it has been ordered.
+
+### Round 40 — E.3 rebuilt around retrieval-induced false attribution
+
+Shay supplied an allergy-extraction example (*"Patient denies penicillin allergy; mother had
+anaphylaxis to penicillin"*) and asked for something similar in E.3. It is better than what I had,
+for a reason worth recording:
+
+**My example depended on the note being empty; theirs depends on the note being full.** I had a
+terse note with no disease-status vocabulary, so the contaminating evidence arrived entirely from
+elsewhere — retrieval filling a vacuum. In their version the note itself is the lure: it *contains*
+"penicillin" and "anaphylaxis", so similarity search is actively drawn toward the wrong answer.
+That is the stronger demonstration, because it shows retrieval failing on the case it looks most
+competent at rather than on an edge case.
+
+Rebuilt on our own task. The note now reads:
+
+> "Restaging CT shows **no evidence** of progressive disease. Discussed that new hepatic lesions
+> **would** indicate progression and prompt a change of line."
+
+This stacks negation, a hypothetical (D11), and maximal progression vocabulary in two sentences.
+Correct label `Non-PD`; Part 2 gets it right; a dense retriever scores it nearest to notes about
+genuine progression in other patients. Output shown as real JSON in all four
+`ClinicalClassification` fields (field names read from the model rather than typed from memory), so
+the wrong answer appears in the actual contract, with a verbatim quote from someone else's chart.
+
+Two further gains from their phrasing:
+
+1. **"Similarity search optimizes for shared clinical terms, not patient identity, temporality,
+   experiencer or negation."** One sentence subsuming what I had spread over three paragraphs
+   (cross-patient, D9 temporality, negation inversion) — and it adds *experiencer*, which I had
+   missed entirely despite D11 covering family history in Part 2.
+2. **The safeguard stated as a prohibition plus a legitimate use.** "Retrieved material may never
+   serve as evidence" is sharper than my hedged ordering, and "terminology normalization after
+   extraction" is a concrete allowed use where I had only the vaguer "reference knowledge".
+
+Dropped the 69% `Oncology.csv` statistic. It was propping up the terse-note premise and does not
+support the new example; retaining it would have been decoration. The D13 abstention-inversion
+insight survives as one clause, since it is what the same mechanism does to a terse note.
+
+Measured: E.3 608 → 592 words; Part 4 3,131 → 3,128. Stronger and slightly shorter. E.1 (1,288) and
+E.2 (1,115) remain the long poles.
