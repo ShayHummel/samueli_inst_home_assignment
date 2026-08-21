@@ -2286,5 +2286,11 @@ Offset most of the added length by cutting an overlap two paragraphs down, where
 precisely when it gets blurred" restated the load-bearing-distinction sentence immediately
 preceding it.
 
-Measured: E.3 574 → 599 words (+25 net); Part 4 3,110 → 3,135. The growth is deliberate — the
+Measured: E.3 574 → 608 words (+34 net); Part 4 3,110 → 3,131. The growth is deliberate — the
 replaced sentence was false and the correction needs a clause to say what the section is doing.
+
+Fourth occurrence of the word-count error, and the round-37 rule did not prevent it because the
+rule was wrong about the mechanism. Putting the measurement earlier *in the same command* as the
+log heredoc does nothing: the heredoc text is authored before any output is seen. The rule is
+therefore that the log entry must be written in a **separate tool call** after the measurement has
+been read — not merely after it has been ordered.
