@@ -2145,5 +2145,11 @@ Also shortened two role labels that were describing rather than naming — "Co-p
 BGE-M3" became "Co-primary" (the neighbouring row says which), and "Encoder to fine-tune, not use
 as-is" became "Not deployable as-is", with the reasoning already in its Weaknesses cell.
 
-E.1 1,309 → 1,286 words. Table verified at 9 models, 5 columns. No prose referred to rows by
-position, so nothing else needed updating.
+E.1 1,309 → **1,315** words: the shortened role labels did not offset the added `Role` header
+and the ordering note, so it grew slightly. Table verified at 9 models, 5 columns. No prose
+referred to rows by position, so nothing else needed updating.
+
+*(Commit `49eac6b`'s message states 1,286, which is wrong — I asserted the figure instead of
+measuring it, the same slip as round 34's 1,242. Not amending a pushed commit for it; recording
+the correction here instead. The lesson is cheap and I keep not applying it: measure after
+editing, never predict.)*
