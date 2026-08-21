@@ -177,97 +177,62 @@ Confusion matrix                       PD-class metrics
                                           roc-auc    0.506
 ```
 
-**ROC-AUC 0.506 is the number that matters.** The labels are random, so a correct harness must
-find no discrimination — and it does. Abstentions score exactly 0.5 and so contribute none; the
-other 58 records carry a real score.
-
-**Read the PD-class metrics as a shape, not a measurement.** The mock predicts PD for 5% of
-notes, matching a corpus with two occurrences of "progression" and none of "progressive
-disease", so precision and recall rest on four predictions. That is the low-prevalence problem
-of Q1.2c arriving by construction, and it is what 3.3 below is about.
+The labels are random, so **ROC-AUC near 0.5 is the correct outcome** — a harness that found
+discrimination here would be broken. Abstentions score exactly 0.5 and contribute none. Nothing
+else in this block is a performance claim: with PD predicted for 5% of notes, the PD-class
+metrics rest on a handful of predictions, which is the low-prevalence problem 3.3 is about.
 
 ## Task 3.3 — Two written questions
 
 ### Records with no ground truth came through your SQL. How does your evaluation function handle them, and why does it matter?
 
-They are **excluded from every metric and counted separately in the printed report**.
-`evaluate()` partitions the corpus three ways — parse/validation failures, records with a null
-label, and records actually evaluated — and prints all three counts above the metrics.
-Crucially the two exclusion reasons are reported *separately*, because they have different
-owners: a parse failure is a model or parser defect, a missing label is a data problem, and
-collapsing them into one "skipped" number hides which team needs to act.
+**Excluded from every metric, and counted separately in the printed report.** `evaluate()`
+partitions the corpus three ways — pipeline failures, null labels, evaluated — and prints all
+three. The two exclusion reasons are kept apart because they have different owners: a pipeline
+failure is a model or parser defect, a missing label is a data problem.
 
-Why it matters, in order of severity:
+Why it matters:
 
-**Unlabeled records are not a random sample.** They are frequently unlabeled *because* they
-were hard — the annotator could not decide, the record was ambiguous, or a join upstream lost
-it. Dropping them silently therefore removes disproportionately difficult cases and inflates
-every metric. The measured score drifts away from production performance in the optimistic
-direction, which is the worst direction for a clinical system.
-
-**Imputing them is worse than dropping them.** Filling a missing label with the majority class
-manufactures ground truth. At the ~5% clinical prevalence of Q1.2c, defaulting the unlabeled to Non-PD inflates
-accuracy and specificity while corrupting recall, and the corruption is invisible because the
-fabricated labels look like data.
-
-**An unreported denominator makes the metric unreadable.** `F1 = 0.92` over 1,000 records and
-over 60 records are different claims. Without the exclusion counts a reader cannot tell which
-they are looking at, cannot compute a confidence interval, and cannot notice that half the
-corpus vanished.
-
-**The missingness rate is itself a monitoring signal.** A rising proportion of unlabeled
-records means annotation is falling behind or a SQL join is silently dropping rows — the
-latter being the failure mode the question's phrasing hints at. That deserves an alert, not a
-`dropna()`.
-
-**Practically**, NaN labels must also never reach scikit-learn: depending on the metric they
-either raise or coerce into nonsense. Handling them explicitly at the boundary is what keeps a
-silent `except: pass` out of the pipeline.
+- **They are not a random sample.** Records are often unlabeled *because* they were hard, so
+  dropping them silently removes the difficult cases and inflates every metric — in the
+  optimistic direction, which is the worst one for a clinical system.
+- **Imputing is worse than dropping.** Filling with the majority class manufactures ground
+  truth, and the corruption is invisible because fabricated labels look like data.
+- **An unreported denominator makes the metric unreadable.** F1 = 0.92 over 1,000 records and
+  over 60 records are different claims.
+- **The missingness rate is itself a monitoring signal.** A rising share means annotation is
+  falling behind, or a join is silently dropping rows — the failure the question hints at. That
+  deserves an alert, not a `dropna()`.
+- **Practically**, NaN must never reach scikit-learn: it either raises or coerces into nonsense.
 
 ### Your ROC-AUC is 0.94 but F1 for the PD class is 0.61. Explain how both can be true at once, and what you would do about it.
 
 **They measure different things, and only one of them involves a decision.** ROC-AUC is
-threshold-free: it is the probability that a randomly chosen positive is ranked above a
-randomly chosen negative. It measures *ordering* and is insensitive to prevalence. F1 is
-computed at **one specific threshold** and depends on precision, which is acutely
-prevalence-sensitive. So 0.94 says the model ranks well; 0.61 says the decision rule applied to
-that ranking is poor. Both can be true simultaneously, and at low prevalence they routinely are.
+threshold-free — the probability a random positive outranks a random negative — and is
+insensitive to prevalence. F1 is computed at **one threshold** and depends on precision, which is
+acutely prevalence-sensitive. So 0.94 says the ranking is good; 0.61 says the decision rule
+applied to that ranking is poor.
 
-A concrete illustration. Take 1,000 records with 50 positives (5%). Excellent ranking, AUC 0.94.
-Threshold at the default 0.5 and you might get 40 TP, 60 FP, 10 FN — precision 0.40, recall
-0.80, F1 0.53. The 60 false positives come from the top tail of 950 negatives; because
-negatives outnumber positives 19:1, even a small false-positive *rate* produces an absolute
-count that swamps precision. ROC-AUC never sees this, because its x-axis is a *rate* over that
-huge negative pool. This is the same mechanism as the ROC-AUC critique in Q1.2c.
+Concretely: 1,000 records, 50 positives. Threshold at 0.5 and you might get 40 TP, 60 FP, 10 FN —
+precision 0.40, F1 0.53. Those 60 false positives come from the tail of **950** negatives, so a
+small false-positive *rate* still yields an absolute count that swamps precision. ROC-AUC never
+sees it, because its x-axis is a rate over that huge negative pool — the same mechanism as the
+ROC-AUC critique in Q1.2c.
 
-**What I would do, cheapest and most likely first:**
+What I would do, cheapest first:
 
-1. **Move the threshold before touching the model.** Sweep it on validation data and choose
-   against the clinical false-negative-to-false-positive cost ratio rather than leaving it at
-   0.5. When AUC is 0.94, most of the F1 gap is usually recoverable here alone, and it costs
-   nothing.
-2. **Read the precision-recall curve, not the ROC.** At 5% prevalence the PR curve is the
-   informative one; it shows directly whether *any* operating point achieves acceptable
-   precision, or whether the ranking is good but the top of it is contaminated.
-3. **Check calibration.** ROC-AUC is invariant under any monotone transform of the scores, so a
-   model can rank perfectly and still be badly calibrated — and a badly calibrated score makes
-   every threshold choice wrong. Reliability diagram, ECE, Brier; then Platt scaling, which
-   changes the thresholded metrics without changing AUC at all.
-4. **Consider selective prediction.** With AUC 0.94 there is almost certainly a high-precision
-   region. Report precision at fixed recall and the risk-coverage curve, and route the
-   uncertain middle band to clinician review. This trades coverage for precision deliberately
-   instead of accepting a bad F1 at full coverage.
-5. **Audit the positive labels.** With few positives, a handful of incorrect gold labels moves
-   F1 substantially while barely touching AUC. Re-adjudicate the false positives and false
-   negatives with a clinician before concluding the model is at fault.
-6. **Report confidence intervals on both.** F1 over a small positive class has a wide interval;
-   0.61 may not be statistically distinguishable from 0.75, in which case some of the "gap"
-   is noise. The run above reports a CI on both metrics for exactly this reason.
-7. **Only then change the model.** Threshold, calibration and label quality account for this
-   pattern far more often than model capacity does, and all three are cheaper to fix.
-
-This pipeline shows the pattern: ROC-AUC **0.506** against an F1 of **0.158**, with precision
-0.750 and recall 0.088. The driver is abstention — most records carry no
-evidence, so the model commits rarely, which flatters precision and destroys recall while
-leaving the ranking largely intact. With random labels the magnitude is noise; the mechanism is
-the point.
+1. **Move the threshold**, chosen on validation data against the clinical FN:FP cost ratio rather
+   than left at 0.5. Most of the gap is usually recoverable here, and it costs nothing.
+2. **Read the PR curve (PR-AUC), not the ROC.** At 5% prevalence it shows directly whether *any*
+   operating point reaches acceptable precision.
+3. **Check calibration.** ROC-AUC is invariant under monotone transforms, so a model can rank
+   perfectly and still be badly calibrated. Reliability diagram, ECE, Brier; then Platt scaling,
+   which moves the thresholded metrics without changing AUC.
+4. **Consider selective prediction.** At 0.94 there is almost certainly a high-precision region:
+   report precision at fixed recall and route the uncertain band to clinician review.
+5. **Audit the positive labels.** With few positives, a handful of wrong gold labels moves F1
+   substantially while barely touching AUC.
+6. **Report confidence intervals.** F1 over a small positive class has a wide one; 0.61 may not be
+   distinguishable from 0.75, in which case part of the "gap" is noise.
+7. **Only then change the model.** Threshold, calibration and label quality explain this pattern
+   far more often than model capacity, and all three are cheaper to fix.

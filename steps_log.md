@@ -2052,3 +2052,29 @@ Verified after: every figure matches a live run, all links resolve, 113 tests, r
 
 **Note for the 3.3 review:** at 919 words it is now the longest section, and the PDF asks for
 "two **short** written questions". Left alone pending the candidate's own review pass.
+
+### Task 3.3 shortened, and the same principle applied to 3.2
+
+Candidate removed the closing paragraph of 3.3 — the one reading conclusions off this run's
+numbers — on the grounds that those numbers are random, and asked for the answer to be shortened.
+Both correct. 3.3 was 870 words against a PDF that asks for "two **short** written questions".
+
+Cut to **581**. The five reasons unlabeled records matter became short bullets rather than
+paragraphs; the seven remedies for the AUC/F1 gap stayed as a numbered list, since "what would
+you do about it" is the substance of that question, but each is now one sentence. The worked
+1,000-record illustration survives intact — it is the part that actually demonstrates the
+mechanism.
+
+Also fixed a stale claim the length had hidden: remedy 6 said *"the run above reports a CI on
+both metrics"*, but the bootstrap intervals were removed several rounds ago. Reworded to make the
+general point without the false reference.
+
+**Applied the candidate's principle to a parallel case they had not flagged.** 3.2's closing
+carried a paragraph reading the PD-class metrics as "a shape, not a measurement" — the same
+analysis of random results, in a different section. Cut. What remains is one sentence noting that
+ROC-AUC near 0.5 is the *correct* outcome for random labels, which is a sanity check on the
+harness rather than a performance claim, and an explicit statement that nothing else in the block
+is one.
+
+Part 3 total: **1,845 words**, from 3,148 at the start of the day. 3.1 728 · 3.2 469 · 3.3 581.
+113 tests, ruff clean, links resolve.
