@@ -2078,3 +2078,37 @@ is one.
 
 Part 3 total: **1,845 words**, from 3,148 at the start of the day. 3.1 728 · 3.2 469 · 3.3 581.
 113 tests, ruff clean, links resolve.
+
+### Round 34 — three more embedding candidates in E.1
+
+`@claude` comment: add Qwen3-Embedding and BioLORD-2023 / PubMedBERT to the candidates table.
+Added, with the roles they actually fit rather than as three more rows of the same kind:
+
+- **Qwen3-Embedding** (0.6B/4B/8B) — genuinely a rival for the primary slot, not a footnote.
+  Hebrew is in scope via Qwen3's multilingual training, 32k context, instruction-aware queries,
+  Matryoshka dimensions, Apache 2.0.
+- **BioLORD-2023** — trained against ontology *definitions* rather than co-occurrence, so
+  clinically distinct concepts stay apart instead of collapsing because they share notes.
+  Sentence-scale, so its role is reranking a shortlist.
+- **PubMedBERT embeddings** — included with the caveat that matters: **masked-LM pretraining
+  alone is weak for retrieval.** A PubMedBERT checkpoint is an encoder to fine-tune, not a
+  retriever to deploy, and treating it as one is a common mistake.
+
+**Adding Qwen3-Embedding forced the architecture argument to change**, which is the part worth
+noting. The old point 1 asserted BGE-M3 as primary; that is no longer honest, because Qwen3 is a
+real contender. It is now framed as a bake-off on the axis that actually separates them: BGE-M3
+emits a sparse signal alongside the dense one, and clinical text turns on rare tokens that dense
+embeddings smooth away — Qwen3 is dense only, so matching those needs BM25 beside it, a second
+system to tune. Against that, Qwen3's Matryoshka dimensions let index size trade against accuracy
+*without re-embedding the corpus*, which is worth real money where re-embedding is a multi-day
+job. Conclusion stated as a starting point plus the one candidate likely to beat it, rather than
+a verdict.
+
+Merged the old points 2 and 3 into one covering all four domain models by role — SapBERT
+normalizes, BioLORD reranks, MedCPT is for literature, PubMedBERT is for fine-tuning — since
+they were making the same argument separately. Net effect: E.1 grew 1,107 → 1,242 words for three
+extra table rows, rather than the ~1,320 a straight append would have cost.
+
+**Model facts flagged for verification**, as with the Part 1 specs: the size tiers, context
+lengths, licences and training objectives above are from memory and sit near my knowledge
+cutoff. Worth a pass against the model cards before submission.

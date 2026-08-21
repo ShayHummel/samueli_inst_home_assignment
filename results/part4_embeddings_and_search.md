@@ -37,37 +37,42 @@ architecture — so I would name it up front rather than pick a model and discov
 | **BGE-M3** | General, multilingual | Broad multilingual coverage including Hebrew; 8,192-token context, so whole notes fit unchunked; emits **dense + sparse + multi-vector** from one model, giving lexical and semantic retrieval without a second system | General-domain: no clinical supervision; larger and slower than single-signal encoders | **Primary retriever** |
 | **multilingual-E5** (large / instruct) | General, multilingual | Strong, well-established multilingual baseline; cheap to serve | Requires `query:` / `passage:` prefixes — omit them and quality degrades sharply, a real operational footgun; 512-token limit on base variants forces chunking | Baseline to beat |
 | **GTE-multilingual** | General, multilingual | 8,192 context, notably smaller and faster than BGE-M3 | Fewer retrieval signals; less battle-tested clinically | Throughput candidate |
+| **Qwen3-Embedding** (0.6B / 4B / 8B) | General, multilingual | Hebrew in scope via Qwen3's multilingual training; 32k context; instruction-aware queries; Matryoshka dimensions; Apache 2.0 | Dense only, so no sparse channel; the 8B tier is expensive at corpus scale | **Co-primary with BGE-M3** |
 | **MedCPT** | Domain, English | Trained on ~255M PubMed query–article click pairs, so it is a genuine *retriever* rather than a repurposed encoder; strong biomedical relevance | Trained on **PubMed abstracts, not clinical notes** — academic prose differs sharply from telegraphic EHR text full of abbreviations; English only | Literature / guideline corpus only |
 | **SapBERT** | Domain, English | Self-aligned over UMLS synonyms; excellent at mapping surface forms to concepts (`MI` ↔ `myocardial infarction`) | An **entity linker, not a passage retriever** — tuned for short strings, not documents; English only | Concept normalization layer |
+| **BioLORD-2023** | Domain, English | Trained against ontology *definitions* rather than co-occurrence, so clinically distinct concepts stay far apart instead of collapsing because they appear in the same notes; strong on biomedical sentence similarity | Sentence-scale, not document-scale; English only | Reranking a shortlist |
+| **PubMedBERT** embeddings | Domain, English | Pretrained from scratch on PubMed, so the vocabulary is genuinely biomedical rather than a general model's word-pieces | **Masked-LM pretraining alone is weak for retrieval** — it needs contrastive fine-tuning before its embeddings rank usefully, so a checkpoint is not a retriever; English only | Encoder to fine-tune, not use as-is |
 | **BM25** | Lexical | No training, no GPU, no drift; unbeatable on exact drug names, ICD codes, identifiers | No semantics; misses paraphrase | **Mandatory baseline** |
 
 ### The architecture this implies
 
-**1. BGE-M3 as the primary retriever.** Multilingual coverage is non-negotiable given the
-Hebrew/English mix, and its 8,192-token context comfortably holds whole notes — no note in
-`Oncology.csv` exceeds ~2,000 tokens, so chunking can be avoided entirely, which removes a whole
-class of boundary bugs. Its **sparse signal is the reason to prefer it
-over a dense-only model**: clinical text turns on rare tokens (drug names, ICD codes, `s/p`,
-`PR`) that dense embeddings smooth away, and getting lexical matching from the same model
-avoids running and tuning a second retrieval system.
+**1. BGE-M3 against Qwen3-Embedding is the real bake-off.** Multilingual coverage is
+non-negotiable given the Hebrew/English mix, and both clear it with room for whole notes
+unchunked — no note in `Oncology.csv` exceeds ~2,000 tokens. They differ on one axis that
+matters here: BGE-M3 emits a **sparse** signal alongside the dense one, and clinical text turns
+on rare tokens (drug names, ICD codes, `s/p`, `PR`) that dense embeddings smooth away. Qwen3 is
+dense only, so matching those needs BM25 beside it — a second system to tune. Against that,
+Qwen3 offers instruction-aware queries and Matryoshka dimensions, which let index size be
+traded against accuracy *without re-embedding the corpus* — worth real money at the scale where
+re-embedding is a multi-day job. I would start from BGE-M3 for the single-system sparse+dense
+story and treat Qwen3 as the one candidate genuinely likely to beat it.
 
-**2. SapBERT used for what it is actually good at.** Not as the passage retriever, but as a
-concept-normalization layer: canonicalize entity mentions to UMLS CUIs so `MI`,
-`myocardial infarction` and the Hebrew equivalent collapse to one concept. Those CUIs then
-become *metadata* (see E.2) and feed the sparse channel. Using SapBERT to embed whole notes
-would be a category error — it is trained on short synonym pairs.
+**2. The domain models each do one job, and none of them is first-stage retrieval.** SapBERT
+normalizes entity mentions to UMLS CUIs, so `MI`, `myocardial infarction` and the Hebrew
+equivalent collapse to one concept; those CUIs become *metadata* (see E.2) and feed the sparse
+channel. BioLORD-2023 reranks a shortlist, where definition-grounded training separates concepts
+that co-occurrence-trained models conflate. MedCPT belongs on a literature corpus, not on EHR
+notes. PubMedBERT is an encoder to fine-tune, not a retriever to deploy. Using any of them as
+the primary retriever is a category error — the failure mode is picking a model because "Med" or
+"Bio" appears in its name.
 
-**3. MedCPT only if there is a literature corpus.** It is the right tool for
-query→publication retrieval and the wrong tool for EHR notes. Pointing it at clinical text
-because it says "Med" in the name is the mistake to avoid.
-
-**4. BM25 as the floor, run first.** On clinical corpora a lexical baseline is often
+**3. BM25 as the floor, run first.** On clinical corpora a lexical baseline is often
 embarrassingly competitive, because much clinical retrieval is known-item search for a named
 drug or code. If a neural retriever cannot beat BM25 on our own queries, that is a finding, not
 a setback — and hybrid (BM25 + dense, fused with reciprocal rank fusion) is frequently the
 production answer.
 
-**5. Hebrew must be measured, not assumed.** Exactly the Q1.1b concern one layer down:
+**4. Hebrew must be measured, not assumed.** Exactly the Q1.1b concern one layer down:
 morphological richness makes tokenisation lossy, and code-switched notes put Hebrew prose
 around English drug names. Two levers if measurement disappoints: **domain-adaptive contrastive
 fine-tuning** of the retriever on de-identified local pairs — far cheaper than fine-tuning a
