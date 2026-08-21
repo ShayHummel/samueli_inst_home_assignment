@@ -2335,3 +2335,21 @@ insight survives as one clause, since it is what the same mechanism does to a te
 
 Measured: E.3 608 → 592 words; Part 4 3,131 → 3,128. Stronger and slightly shorter. E.1 (1,288) and
 E.2 (1,115) remain the long poles.
+
+### Round 41 — decision IDs removed from Part 4
+
+Shay's own edit stripped the `D9` / `D11` / `D13` references from E.3. Right call: those IDs index
+Part 2's internal decision table, and a Part 4 reader meets them with no expansion, so they read as
+opaque back-references rather than as cross-links.
+
+Two follow-ups the edit needed:
+
+- **A broken article.** Deleting "D13" from "destroys a D13 abstention" left "destroys a
+  abstention". Fixed to "an".
+- **One survivor.** `abstains into D13` remained at the end of the safeguards paragraph. Removed for
+  consistency, rephrased as "abstains rather than answers" so the meaning survives without the ID.
+
+Part 4 is now free of internal decision IDs; grep confirms. Part 2 still uses them 7 times, which is
+correct — that is where they are defined.
+
+Measured: E.3 602 words, Part 4 3,125.

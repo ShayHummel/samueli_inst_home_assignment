@@ -258,7 +258,7 @@ Take a note whose own wording is the trap:
 > "Restaging CT shows **no evidence** of progressive disease. Discussed that new hepatic lesions
 > **would** indicate progression and prompt a change of line."
 
-The correct label is `Non-PD`, and Part 2 gets it: negation and the hypothetical (D11) are exactly
+The correct label is `Non-PD`, and Part 2 gets it: negation and the hypothetical are exactly
 what the stage 1 prompt is built to separate. But the note is *saturated* with progression
 vocabulary — "progressive disease", "new hepatic lesions", "progression" — so a dense retriever
 scores it nearest to notes describing genuine progression **in other patients**. The model blends
@@ -278,10 +278,10 @@ error: progression is the finding that triggers a change of treatment line.
 
 **Why RAG makes it worse.** Extraction must be grounded strictly in the source document, and
 retrieval supplies plausible evidence that is not about this patient. **Similarity search
-optimizes for shared clinical terms, not for patient identity, temporality (D9), experiencer (D11)
+optimizes for shared clinical terms, not for patient identity, temporality, experiencer
 or negation** — the four axes along which a note can carry the words without asserting the fact.
 Worse, the retrieved context makes the wrong answer *look* well-supported, so the confidence
-suppresses the review that would have caught it. On a terse note the same mechanism destroys a D13
+suppresses the review that would have caught it. On a terse note the same mechanism destroys an
 abstention instead, converting a safe hand-off to a clinician into a confident error.
 
 **And retrieval cannot warn you.** ANN search always returns *k* results: there is no null answer
@@ -296,7 +296,7 @@ near-arbitrary and the neighbors effectively random. Both are indistinguishable 
 field carries an exact span and character offset into the target note, which makes a foreign quote
 *inexpressible* rather than merely detectable; retrieved text sits in a `<reference>` block the
 prompt forbids quoting; retrieval is patient-scoped by hard filter (E.2), not by instruction; and a
-relevance floor lets the retriever return nothing so the pipeline abstains into D13.
+relevance floor lets the retriever return nothing, so the pipeline abstains rather than answers.
 
 The grounding check in [`src/validation.py`](../src/validation.py) already rejects this record —
 but only because it verifies quotes against **the note under classification** rather than against
