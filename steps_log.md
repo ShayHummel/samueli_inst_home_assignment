@@ -2106,8 +2106,9 @@ a verdict.
 
 Merged the old points 2 and 3 into one covering all four domain models by role — SapBERT
 normalizes, BioLORD reranks, MedCPT is for literature, PubMedBERT is for fine-tuning — since
-they were making the same argument separately. Net effect: E.1 grew 1,107 → 1,242 words for three
-extra table rows, rather than the ~1,320 a straight append would have cost.
+they were making the same argument separately. Net: E.1 grew 1,107 → 1,309 words. The merge and
+one de-duplication paid back only ~15 of the ~215 the three rows and the reframed point 1 cost,
+so this section is now the longest in Part 4 and a candidate for the next concision pass.
 
 **Model facts flagged for verification**, as with the Part 1 specs: the size tiers, context
 lengths, licences and training objectives above are from memory and sit near my knowledge
