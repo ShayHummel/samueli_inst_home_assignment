@@ -2113,3 +2113,37 @@ so this section is now the longest in Part 4 and a candidate for the next concis
 **Model facts flagged for verification**, as with the Part 1 specs: the size tiers, context
 lengths, licences and training objectives above are from memory and sit near my knowledge
 cutoff. Worth a pass against the model cards before submission.
+
+### Round 35 — candidates table ordered by role
+
+`@claude` comment: order by role, most promising to least. Done, and the ordering is now:
+
+1. **BGE-M3** — primary retriever
+2. **Qwen3-Embedding** — co-primary
+3. **BM25** — mandatory baseline
+4. multilingual-E5 — neural baseline to beat
+5. GTE-multilingual — throughput alternative
+6. BioLORD-2023 — shortlist reranker
+7. SapBERT — concept normalization
+8. MedCPT — literature corpus only
+9. PubMedBERT — not deployable as-is
+
+The judgment in that sequence is worth stating: **BM25 sits third, above every neural
+baseline.** It is not a formality. On clinical corpora much retrieval is known-item search for a
+named drug or code, where a lexical baseline is frequently competitive and sometimes wins — and
+it costs nothing to run. Ranking it below the neural options would imply an ordering by
+sophistication rather than by expected value on this corpus. The tail is ordered by how far each
+model is from being usable here at all, ending with PubMedBERT, which cannot be deployed as a
+retriever without contrastive fine-tuning.
+
+**Moved `Role` from the last column to the second.** An ordering by a column the reader reaches
+last is not visible while scanning; with `Role` beside `Model` the grouping reads immediately and
+the table explains its own sequence. Not asked for, but it is what makes the requested ordering
+legible rather than merely present.
+
+Also shortened two role labels that were describing rather than naming — "Co-primary with
+BGE-M3" became "Co-primary" (the neighbouring row says which), and "Encoder to fine-tune, not use
+as-is" became "Not deployable as-is", with the reasoning already in its Weaknesses cell.
+
+E.1 1,309 → 1,286 words. Table verified at 9 models, 5 columns. No prose referred to rows by
+position, so nothing else needed updating.
