@@ -249,8 +249,11 @@ both faster and more auditable than hoping cosine similarity captures it.
 
 ### Cross-patient contamination turns a safe abstention into a confident error
 
-A RAG layer retrieves the *k* most similar notes and adds them to the Part 2 prompt. Patient A's
-note is terse and never states a response status — the majority case, since **69% of
+Part 2's pipeline has no retrieval — it classifies one note in isolation. This section posits the
+extension somebody *would* propose: retrieve the *k* most semantically similar notes and add them
+as context for the hard cases. That proposal is the failure mode.
+
+Patient A's note is terse and never states a response status — the majority case, since **69% of
 `Oncology.csv` contains no disease-status vocabulary at all**. Its nearest neighbors are
 therefore other patients' oncology notes of the same cancer type, skewed toward the semantically
 richest ones, which are exactly those with explicit progression language:
@@ -264,10 +267,9 @@ replaced a safe, reviewed outcome with a confident, evidence-backed, wrong, *unr
 the confidence suppressing the review that would have caught it.
 
 The grounding check in [`src/validation.py`](../src/validation.py) catches this only because it
-verifies quotes against **the note under classification**, not against "the provided context" —
+verifies quotes against **the note under classification** rather than "the provided context" —
 the natural phrasing once RAG exists, and one that would let the record pass. **The distinction
-between the source document and the context window is load-bearing**, and a RAG retrofit is
-precisely when it gets blurred.
+between source document and context window is load-bearing, and a retrofit is when it blurs.**
 
 ### Why it generalizes: retrieval cannot say "nothing here"
 

@@ -2262,3 +2262,29 @@ a reader hit as an actual question.
 Measured after the edit: E.3 1,018 → 574 words (−44%); Part 4 3,305 → 3,110. E.1 (1,288) and E.2
 (1,115) are now the long poles and are the next candidates if Part 4 needs to come down further
 toward Part 3's 1,865.
+
+### Round 39 — E.3 was asserting a RAG layer that does not exist
+
+`@claude: who says that they are added to Part 2 prompt ?`
+
+Nothing does, and that was the defect. E.3 opened with "A RAG layer retrieves the *k* most similar
+notes and adds them to the Part 2 prompt" — flat declarative, as though describing the system we
+built. Part 2's pipeline has no retrieval at all: it takes one note, reasons over it, structures,
+validates. Stage 2 does not even receive the note. So the sentence invented a component and
+attributed it to our design.
+
+Fixed by framing it as what it actually is — a proposal, not an implementation: Part 2 has no
+retrieval, and this section posits the extension somebody *would* propose. That is also the
+stronger framing for E.3's purpose, since the question asks where RAG makes extraction *worse*:
+the answer lands harder when the target is a plausible, well-intentioned addition rather than an
+existing flaw.
+
+Worth noting the class of error, because it is the kind that survives review: a hypothetical
+written in the indicative. Nothing about the sentence looked uncertain, so nothing flagged it.
+
+Offset most of the added length by cutting an overlap two paragraphs down, where "a RAG retrofit is
+precisely when it gets blurred" restated the load-bearing-distinction sentence immediately
+preceding it.
+
+Measured: E.3 574 → 599 words (+25 net); Part 4 3,110 → 3,135. The growth is deliberate — the
+replaced sentence was false and the correction needs a clause to say what the section is doing.
