@@ -3,6 +3,21 @@
 Clinical text & LLMs: an on-prem PD / Non-PD classification pipeline, its validation
 strategy, the supporting SQL, and an evaluation harness.
 
+## Submission
+
+The Logistics section asks for two things. Both are here:
+
+| Deliverable | Where |
+| --- | --- |
+| **(1) PDF** — theoretical answers and prompt design | [`results/Samueli_Home_Assignment_Shay_Hummel.pdf`](results/Samueli_Home_Assignment_Shay_Hummel.pdf) — 35 pages: Parts 1–4 in full, plus an appendix of the prompt templates |
+| **(2) Repo** — Python and SQL | `src/` (pipeline, prompts, evaluation), `sql/` (Task 3.1 queries), `tests/` |
+
+The PDF is generated, not hand-assembled: `uv run samueli-pdf` rebuilds it from the
+`results/*.md` documents and reads the prompt appendix **live from `src/prompts/`**, so the
+prompt text in the PDF is by construction the text the pipeline sends. Rebuilding needs
+`pandoc` and Google Chrome (headless, for HTML → PDF); the committed PDF means a reviewer
+needs neither.
+
 ## Quick start
 
 Requires [`uv`](https://docs.astral.sh/uv/) and Python 3.13 (uv will fetch the interpreter
@@ -10,11 +25,12 @@ if needed).
 
 ```bash
 uv sync                                  # one command; installs everything incl. pytest
-uv run pytest -q                         # 105 tests
+uv run pytest -q                         # 113 tests (89 + 24 SQL, see below)
 uv run ruff check .                      # lint: unused imports, undeclared packages
 
 uv run samueli-evaluate                  # Task 3.2 evaluation
-uv run samueli-pipeline                  # walkthrough: 14 scenarios, one set per stage
+uv run samueli-pipeline                  # walkthrough: 13 scenarios, one set per stage
+uv run samueli-pdf                       # rebuild the submission PDF
 ```
 
 Both commands above are console entry points and work from any directory. The equivalent module
@@ -35,6 +51,7 @@ enforces that nothing undeclared or unused creeps back in.
 
 | Document | Covers |
 | --- | --- |
+| [`results/Samueli_Home_Assignment_Shay_Hummel.pdf`](results/Samueli_Home_Assignment_Shay_Hummel.pdf) | **All of the below in one file**, plus the prompt-design appendix — this is submission deliverable (1) |
 | [`results/part1_architecture_and_validation.md`](results/part1_architecture_and_validation.md) | Part 1 — model selection (Q1.1), validation strategy (Q1.2 a–f) |
 | [`results/part2_prompt_design.md`](results/part2_prompt_design.md) | Part 2 — clarifying questions, prompt design, schema, adherence, edge cases, reproducibility, injection (2.1–2.7) |
 | [`results/part3_sql_and_pipeline.md`](results/part3_sql_and_pipeline.md) | Part 3 — ER diagram, SQL (3.1), evaluation pipeline (3.2), written questions (3.3) |
@@ -55,12 +72,13 @@ src/
   pipeline.py      classify_note(): the flow that drives all four prompts
   evaluate.py      Task 3.2: labels, mocked LLM, robust parsing, metrics
   demo.py          walkthrough of every stage, against scripted models
+  build_pdf.py     assembles the submission PDF from results/ + live prompts
 
 sql/
   schema.sql       DDL for the Task 3.1 clinical schema
   queries/         one file per query, each with its assumptions in a header
 
-tests/             105 tests
+tests/             113 tests
 hw_docs/           the assignment PDF and Oncology.csv
 ```
 

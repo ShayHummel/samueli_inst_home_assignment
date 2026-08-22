@@ -21,6 +21,8 @@ dependencies = [
 # "python src/foo.py" relative-import trap entirely.
 samueli-evaluate = "src.evaluate:main"
 samueli-pipeline = "src.demo:demo"
+# Assembles the PDF deliverable from results/*.md plus the live prompt modules.
+samueli-pdf = "src.build_pdf:main"
 
 [dependency-groups]
 # Installed by `uv sync` by default, so the IDE's interpreter can see them.

@@ -2353,3 +2353,42 @@ Part 4 is now free of internal decision IDs; grep confirms. Part 2 still uses th
 correct — that is where they are defined.
 
 Measured: E.3 602 words, Part 4 3,125.
+
+### Round 42 — submission audit: the missing PDF, and three stale README facts
+
+Went back to the assignment PDF rather than my memory of it, and checked every question against
+the repo. Written coverage is complete: Q1.1a–b, Q1.2a–f, 2.1–2.7, 3.1, 3.2, 3.3's two questions,
+E.1–E.3 — twenty items, all with headings in `results/`. Five SQL files map to the five queries;
+`src/evaluate.py` covers 3.2; `src/prompts/` covers 2.2.
+
+**The real gap was deliverable (1).** Logistics asks for *"a PDF file with the theoretical answers
+and prompt design"* plus the repo. There was no PDF — the open item I had been carrying since
+Part 2. Built `src/build_pdf.py` (entry point `samueli-pdf`) rather than exporting one by hand,
+for one reason that matters: **the prompt appendix is generated live from `src/prompts/`.** A
+hand-made PDF would start drifting from the code the first time a prompt changed. Now the drift is
+impossible by construction. The `COMMENTS TO CLAUDE` blocks are stripped, and the Mermaid ER
+diagram is rendered to real vector SVG via `mermaid-cli` rather than shipped as source text.
+
+Result: 35 pages — title page, Parts 1–4 in full, prompt appendix. Verified by extracting the text
+back out and asserting every section marker is present and no `@claude` marker survived.
+
+**Verification was done against a clean clone, not the working tree**, which is the only way to
+test the "external user takes it as is" requirement:
+
+- `uv sync` → `uv run pytest -q` → **113 passed**; `ruff` clean.
+- With the PostgreSQL binaries removed from `PATH`: **89 passed, 24 skipped** — so the README's
+  claim that the SQL tests skip cleanly is true, and now stated as "89 + 24".
+- `samueli-evaluate` reproduces the figures Part 3 documents (90 / 67 / 23, precision 0.750,
+  recall 0.088, f1 0.158, roc-auc 0.506), and two consecutive runs are byte-identical.
+
+**Three stale README facts, all found by measuring rather than reading:**
+
+1. "105 tests" in two places — actually 113.
+2. "14 scenarios" in the demo — actually 13. The count came from `5d` appearing in the output,
+   which is a printed design note about auditor independence, not a scenario. There are 13
+   `_scenario()` calls.
+3. No mention of the PDF at all, since it did not exist.
+
+One deliberate non-change: `.claude/settings.json` is tracked and will reach the reviewer. It is
+only the worktree setting and the AI use is already disclosed, but removing it would alter local
+behavior, so that is Shay's call.
